@@ -1,0 +1,116 @@
+name: Release
+
+# Publish a signed + notarized macOS build on every push to main.
+# The version is auto-bumped (patch), committed back with [skip ci], and a
+# GitHub Release is created. The website /download endpoint and the in-app
+# auto-updater both read the "latest" release, so users get the new build
+# automatically once this finishes.
+#
+# Website-only / docs-only changes are ignored (the desktop app is unaffected),
+# so they don't trigger a multi-minute notarized build.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "landing/**"
+      - "docs/**"
+      - "staking/**"
+      - "**/*.md"
+      - ".github/ISSUE_TEMPLATE/**"
+
+# Never run two releases at once (notarization can take several minutes).
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # Skip the run triggered by our own version-bump commit.
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need tags to compute the next version
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Compute and apply next version
+        id: bump
+        run: |
+          set -euo pipefail
+          # Base the bump on the highest of (current Cargo version, highest vX.Y.Z tag)
+          # so we never collide with an existing tag.
+          CUR=$(grep '^version' src-tauri/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          TAGV=$(git tag | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed 's/^v//' \
+                 | sort -t. -k1,1n -k2,2n -k3,3n | tail -1 || true)
+          BASE=$(printf '%s\n%s\n' "$CUR" "${TAGV:-0.0.0}" \
+                 | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)
+          IFS='.' read -r MA MI PA <<< "$BASE"
+          NEW="${MA}.${MI}.$((PA + 1))"
+          echo "Current=$CUR  HighestTag=${TAGV:-none}  ->  New=$NEW"
+
+          # macOS runner -> BSD sed (-i '')
+          sed -i '' "s/^version = \".*\"/version = \"${NEW}\"/" src-tauri/Cargo.toml
+          sed -i '' "s/\"version\": \".*\"/\"version\": \"${NEW}\"/" src-tauri/tauri.conf.json
+          sed -i '' "1,/\"version\":/{s/\"version\": \".*\"/\"version\": \"${NEW}\"/;}" package.json
+
+          echo "version=${NEW}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${NEW}" >> "$GITHUB_OUTPUT"
+
+      - name: Commit version bump
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src-tauri/Cargo.toml src-tauri/tauri.conf.json package.json
+          git commit -m "Release ${{ steps.bump.outputs.tag }} [skip ci]"
+          git push origin HEAD:main
+
+      - name: Build, sign, notarize, and publish release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Code signing
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          # Notarization (Tauri expects APPLE_PASSWORD = app-specific password)
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Updater signing
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ steps.bump.outputs.tag }}
+          releaseName: "CodeGrid ${{ steps.bump.outputs.tag }}"
+          releaseBody: "CodeGrid ${{ steps.bump.outputs.tag }} — signed and notarized for macOS."
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          args: --target aarch64-apple-darwin

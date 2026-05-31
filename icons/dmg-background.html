@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  /*
+   * DMG background — authored at 2x (1320x800 px) for a 660x400 pt window.
+   * The PNG is stamped at 144 DPI so Finder maps it to 660x400 points.
+   * Coordinate note: point (x,y) === pixel (2x, 2y).
+   *   App icon center      -> pt (200,200) -> px (400,400)
+   *   Applications center  -> pt (460,200) -> px (920,400)
+   */
+  body {
+    width: 1320px;
+    height: 800px;
+    background: #0a0a0a;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: #fff;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* faint warm glow behind the drop row */
+  .glow {
+    position: absolute;
+    width: 1100px; height: 520px;
+    left: 660px; top: 400px;
+    transform: translate(-50%, -50%);
+    background: radial-gradient(ellipse, rgba(255,140,0,0.08) 0%, transparent 68%);
+    pointer-events: none;
+  }
+
+  /* title */
+  .title {
+    position: absolute;
+    top: 96px; left: 0; right: 0;
+    text-align: center;
+    font-size: 44px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: #fff;
+  }
+  .title b { color: #ff8c00; }
+
+  /* drop-target ring behind the Applications folder (px center 920,400) */
+  .drop-ring {
+    position: absolute;
+    width: 300px; height: 300px;
+    left: 770px; top: 250px;            /* 920-150, 400-150 */
+    border: 3px dashed rgba(255,140,0,0.45);
+    border-radius: 36px;
+    background: rgba(255,140,0,0.04);
+  }
+
+  /* arrow from app (px 400,400) toward Applications (px 920,400) */
+  .arrow {
+    position: absolute;
+    top: 397px;                          /* vertically centered on row */
+    left: 560px;                         /* clears the app icon */
+    width: 190px; height: 6px;
+    display: flex; align-items: center;
+  }
+  .arrow .line {
+    flex: 1; height: 6px; border-radius: 3px;
+    background: linear-gradient(90deg, rgba(255,140,0,0.25), rgba(255,140,0,0.85));
+  }
+  .arrow .head {
+    width: 0; height: 0;
+    border-top: 16px solid transparent;
+    border-bottom: 16px solid transparent;
+    border-left: 26px solid rgba(255,140,0,0.85);
+    margin-left: -2px;
+  }
+
+  /* subtitle */
+  .subtitle {
+    position: absolute;
+    bottom: 92px; left: 0; right: 0;
+    text-align: center;
+    font-size: 26px;
+    font-weight: 400;
+    color: rgba(255,255,255,0.45);
+    letter-spacing: 0.2px;
+  }
+</style>
+</head>
+<body>
+  <div class="glow"></div>
+  <div class="title">Install <b>CodeGrid</b></div>
+  <div class="drop-ring"></div>
+  <div class="arrow"><div class="line"></div><div class="head"></div></div>
+  <div class="subtitle">Drag CodeGrid into your Applications folder</div>
+</body>
+</html>

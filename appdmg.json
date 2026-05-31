@@ -1,0 +1,23 @@
+{
+  "title": "CodeGrid",
+  "background": "icons/dmg-background.png",
+  "icon": "icons/icon.icns",
+  "icon-size": 128,
+  "window": {
+    "size": { "width": 660, "height": 400 }
+  },
+  "contents": [
+    {
+      "x": 200,
+      "y": 200,
+      "type": "file",
+      "path": "src-tauri/target/aarch64-apple-darwin/release/bundle/macos/CodeGrid.app"
+    },
+    {
+      "x": 460,
+      "y": 200,
+      "type": "link",
+      "path": "/Applications"
+    }
+  ]
+}

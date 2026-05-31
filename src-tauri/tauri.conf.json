@@ -1,0 +1,86 @@
+{
+  "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-cli/schema.json",
+  "productName": "CodeGrid",
+  "version": "0.1.60",
+  "identifier": "dev.codegrid.app",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Code Grid Terminal Workspace",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 800,
+        "minHeight": 600,
+        "decorations": true,
+        "resizable": true,
+        "fullscreen": false,
+        "transparent": false,
+        "dragDropEnabled": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src ipc: http://ipc.localhost; frame-src http://localhost:* http://127.0.0.1:* http://0.0.0.0:* http://[::1]:* https: data:",
+      "dangerousDisableAssetCspModification": ["style-src", "frame-src", "img-src"]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "resources": ["resources/agent-bus-mcp.cjs"],
+    "createUpdaterArtifacts": true,
+    "icon": [
+      "../icons/32x32.png",
+      "../icons/128x128.png",
+      "../icons/128x128@2x.png",
+      "../icons/512x512.png",
+      "../icons/1024x1024.png",
+      "../icons/icon.icns",
+      "../icons/icon.ico"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "frameworks": [],
+      "exceptionDomain": "",
+      "signingIdentity": "Developer ID Application: ZipLyne LLC (DHGG5BA7J7)",
+      "entitlements": "Entitlements.plist",
+      "dmg": {
+        "background": "../icons/dmg-background.png",
+        "windowSize": {
+          "width": 660,
+          "height": 400
+        },
+        "appPosition": {
+          "x": 200,
+          "y": 200
+        },
+        "applicationFolderPosition": {
+          "x": 460,
+          "y": 200
+        }
+      }
+    },
+    "category": "DeveloperTool",
+    "shortDescription": "Code Grid — Terminal workspace manager for multi-session AI coding",
+    "longDescription": "Code Grid is a desktop terminal multiplexer that lets you run multiple Claude Code sessions in a free-form 2D grid layout. Features include workspace management, broadcast mode, git manager, MCP server management, and a dense dark theme.",
+    "copyright": "Copyright © 2026 Code Grid"
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["codegrid"]
+      }
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEE2QTRCNzI5OEIzNTIyNjUKUldSbElqV0xLYmVrcGlWVkY1ZysyTlk3Y0FMTGV5N3EyTUhhcWppWDhma2FFRVFpbTQ3MktJZ2kK",
+      "endpoints": [
+        "https://github.com/ZipLyne-Agency/CodeGrid-Claude-Code-Terminal/releases/latest/download/latest.json"
+      ]
+    }
+  }
+}

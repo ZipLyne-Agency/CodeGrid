@@ -1,0 +1,22 @@
+{
+  "name": "@codegrid/grid-points",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "db:init:local": "wrangler d1 execute grid-points --local --file=schema.sql",
+    "db:init:remote": "wrangler d1 execute grid-points --remote --file=schema.sql"
+  },
+  "dependencies": {
+    "hono": "^4.9.0",
+    "jose": "^6.0.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260101.0",
+    "typescript": "^5.7.0",
+    "wrangler": "^4.80.0"
+  }
+}

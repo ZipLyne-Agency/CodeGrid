@@ -1,0 +1,53 @@
+# GRID entitlement verifier — Cloudflare Worker.
+#
+# Verifies a Sign-In-With-Ethereum signature, reads the signer's veGRID tier
+# from Base, and mints a short-lived EdDSA-signed entitlement JWT that the
+# CodeGrid desktop app verifies offline against the published public key.
+#
+# Secrets (set with `wrangler secret put`, NEVER in this file):
+#   JWT_PRIVATE_JWK   Ed25519 private key (JWK JSON) used to sign entitlements
+#   BASE_RPC_URL      Base mainnet RPC (Alchemy/own node). Falls back to public.
+name = "grid-verifier"
+main = "src/index.ts"
+compatibility_date = "2026-05-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Public, non-secret config.
+[vars]
+VEGRID_ADDRESS = "0xF0b2Cd7C64096955896fFF822764D9442F9938da" # StakedGRID on Base mainnet
+GRID_CHAIN_ID = "8453"
+JWT_ISSUER = "https://codegrid.app"
+JWT_AUDIENCE = "codegrid-desktop"
+JWT_TTL_SECONDS = "86400"            # 24h entitlement
+NONCE_TTL_SECONDS = "300"            # 5m to sign after requesting a nonce
+BASE_RPC_URL = "https://base-rpc.publicnode.com"  # worker-friendly public RPC (swap for a dedicated one for scale)
+PUBLIC_JWK = '{"crv":"Ed25519","x":"nI2-PrApCZn-BNEqhlXPoMXUI5Bw5ht81gi70ypBakU","kty":"OKP","kid":"9193d787-f37a-4839-9411-e209a8c5e478","alg":"EdDSA"}'  # prod Ed25519 PUBLIC JWK
+
+# Nonce store — prevents signature replay.
+[[kv_namespaces]]
+binding = "NONCES"
+id = "fd350fe30a894feeab7928c2791db641"  # prod NONCES
+
+[observability]
+enabled = true
+
+# --- Staging (Base Sepolia testnet) — `wrangler deploy --env staging` ---
+[env.staging]
+name = "grid-verifier-staging"
+
+[env.staging.vars]
+VEGRID_ADDRESS = "0x2143D7C3758B3E67AEB5C776fd6f09a68f59438b" # Base Sepolia testnet deploy
+GRID_CHAIN_ID = "84532"
+JWT_ISSUER = "https://codegrid.app"
+JWT_AUDIENCE = "codegrid-desktop"
+JWT_TTL_SECONDS = "86400"
+NONCE_TTL_SECONDS = "300"
+BASE_RPC_URL = "https://sepolia.base.org"
+PUBLIC_JWK = '{"crv":"Ed25519","x":"KOPZvvHeeWNyBUooot04GUgLzAJN6pE8AEBQzIwdeks","kty":"OKP","kid":"005749ee-14a4-4702-88ca-ff409fa080d5","alg":"EdDSA"}'
+
+[[env.staging.kv_namespaces]]
+binding = "NONCES"
+id = "0546581a9a9745f789512b0fd5fef7af"
+
+[env.staging.observability]
+enabled = true
