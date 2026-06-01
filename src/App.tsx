@@ -716,27 +716,45 @@ export default function App() {
   // machine. The pane lives on the canvas but `working_dir` is left empty so
   // ScratchPane resolves $HOME. The pane itself is synthetic (no PTY); ScratchPane
   // spawns/kills the per-provider PTYs internally.
-  const handleCreateScratchPane = useCallback(() => {
-    if (!activeWorkspaceId) return;
+  const handleCreateScratchPane = useCallback((targetWorkspaceId?: string) => {
+    const wsId = targetWorkspaceId ?? activeWorkspaceId;
+    if (!wsId) return;
     const id = `scratch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const synthetic = {
       id,
-      workspace_id: activeWorkspaceId,
+      workspace_id: wsId,
       working_dir: "", // empty → ScratchPane runs its shells/agents in $HOME, not the project
       command: "scratch",
       git_branch: null,
       status: "idle" as const,
       created_at: new Date().toISOString(),
-      pane_number: nextSyntheticPaneNumber(activeWorkspaceId),
+      pane_number: nextSyntheticPaneNumber(wsId),
       worktree_path: null,
       name: null,
       kind: "scratch" as const,
     };
     addSession(synthetic);
-    addPaneLayout(id, { nearSessionId: mostRecentTerminalId(activeWorkspaceId) });
+    addPaneLayout(id, { nearSessionId: mostRecentTerminalId(wsId) });
     setFocusedSession(id);
     revealSession(id);
   }, [activeWorkspaceId, addSession, addPaneLayout, setFocusedSession, nextSyntheticPaneNumber, mostRecentTerminalId]);
+
+  // A scratchpad workspace: a project-less sandbox that holds only scratch
+  // terminals (no repo, no file tree). We create the workspace, make it active,
+  // then seed one scratch terminal so it's immediately usable. Like every scratch
+  // terminal it runs detached in $HOME and is intentionally ephemeral.
+  const handleCreateScratchWorkspace = useCallback(async () => {
+    try {
+      const existing = workspaces.filter((w) => /^Scratchpad/.test(w.name)).length;
+      const name = existing > 0 ? `Scratchpad ${existing + 1}` : "Scratchpad";
+      const ws = await createWorkspace(name);
+      addWorkspace(ws); // sets it active in the store
+      try { await setActiveWorkspaceIpc(ws.id); } catch {}
+      handleCreateScratchPane(ws.id);
+    } catch (e) {
+      addToast(`Failed to create scratchpad: ${e}`, "error");
+    }
+  }, [workspaces, addWorkspace, addToast, handleCreateScratchPane]);
 
   // Window-level events so the command palette, top bar, and dialogs can create these.
   useEffect(() => {
@@ -749,15 +767,18 @@ export default function App() {
       handleCreateNote({ seedText: detail?.seedText, pinnedTo: detail?.pinnedTo });
     };
     const onScratch = () => handleCreateScratchPane();
+    const onScratchWorkspace = () => { void handleCreateScratchWorkspace(); };
     window.addEventListener("codegrid:new-browser-pane", onBrowser);
     window.addEventListener("codegrid:new-note-pane", onNote);
     window.addEventListener("codegrid:new-scratch-pane", onScratch);
+    window.addEventListener("codegrid:new-scratch-workspace", onScratchWorkspace);
     return () => {
       window.removeEventListener("codegrid:new-browser-pane", onBrowser);
       window.removeEventListener("codegrid:new-note-pane", onNote);
       window.removeEventListener("codegrid:new-scratch-pane", onScratch);
+      window.removeEventListener("codegrid:new-scratch-workspace", onScratchWorkspace);
     };
-  }, [handleCreateBrowserPane, handleCreateNote, handleCreateScratchPane]);
+  }, [handleCreateBrowserPane, handleCreateNote, handleCreateScratchPane, handleCreateScratchWorkspace]);
 
   // ⇧⌘J (new scratch pane) is registered centrally in useKeyboardNav via the
   // keybindings table → dispatches "codegrid:new-scratch-pane", handled above.
