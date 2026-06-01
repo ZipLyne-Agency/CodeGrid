@@ -27,6 +27,12 @@ const ZOOMED_OUT_LABEL_THRESHOLD = 0.35;
 // grab panes when zoomed out".
 const DRAG_ANYWHERE_ZOOM = 0.6;
 
+// Canvas dot-grid spacing (px, in canvas space). Panes/notes snap to this grid
+// while dragging and resizing so they line up cleanly. Matches the visual grid
+// rendered in the background below.
+const GRID = 24;
+const snap = (v: number) => Math.round(v / GRID) * GRID;
+
 // ── Perf-critical: all pan/drag/resize runs via refs + direct DOM mutation.
 //    Zustand is only written on mouseup (commit), so React never re-renders mid-gesture.
 
@@ -413,8 +419,8 @@ export const Canvas = memo(function Canvas({ width, height, onCloseSession }: Ca
       if (L.mode === "drag" && L.dragEl) {
         const dx = (e.clientX - L.startX) / L.zoom;
         const dy = (e.clientY - L.startY) / L.zoom;
-        const nx = L.dragOrigX + dx;
-        const ny = L.dragOrigY + dy;
+        const nx = snap(L.dragOrigX + dx);
+        const ny = snap(L.dragOrigY + dy);
         const existingPreview = L.panePreview[L.dragId];
         const fallbackLayout = useLayoutStore.getState().layouts.find((l) => l.i === L.dragId);
         L.panePreview[L.dragId] = {
@@ -433,10 +439,11 @@ export const Canvas = memo(function Canvas({ width, height, onCloseSession }: Ca
         const dy = (e.clientY - L.startY) / L.zoom;
         let { resizeOrigX: x, resizeOrigY: y, resizeOrigW: w, resizeOrigH: h } = L;
         const handle = L.resizeHandle;
-        if (handle.includes("e")) w = Math.max(200, w + dx);
-        if (handle.includes("s")) h = Math.max(150, h + dy);
-        if (handle.includes("w")) { const nw = Math.max(200, w - dx); x = x + (w - nw); w = nw; }
-        if (handle.includes("n")) { const nh = Math.max(150, h - dy); y = y + (h - nh); h = nh; }
+        // Snap the moving edge to the grid; the opposite edge stays fixed.
+        if (handle.includes("e")) w = Math.max(200, snap(w + dx));
+        if (handle.includes("s")) h = Math.max(150, snap(h + dy));
+        if (handle.includes("w")) { const right = x + w; x = Math.min(snap(x + dx), right - 200); w = right - x; }
+        if (handle.includes("n")) { const bottom = y + h; y = Math.min(snap(y + dy), bottom - 150); h = bottom - y; }
         L.panePreview[L.resizeId] = { x, y, w, h };
         L.resizeEl.style.left = `${x}px`;
         L.resizeEl.style.top = `${y}px`;
@@ -448,8 +455,8 @@ export const Canvas = memo(function Canvas({ width, height, onCloseSession }: Ca
       if (L.mode === "note-drag" && L.noteEl) {
         const dx = (e.clientX - L.startX) / L.zoom;
         const dy = (e.clientY - L.startY) / L.zoom;
-        const nx = L.noteOrigX + dx;
-        const ny = L.noteOrigY + dy;
+        const nx = snap(L.noteOrigX + dx);
+        const ny = snap(L.noteOrigY + dy);
         L.noteEl.style.left = `${nx}px`;
         L.noteEl.style.top = `${ny}px`;
         return;
@@ -458,8 +465,8 @@ export const Canvas = memo(function Canvas({ width, height, onCloseSession }: Ca
       if (L.mode === "note-resize" && L.noteEl) {
         const dx = (e.clientX - L.startX) / L.zoom;
         const dy = (e.clientY - L.startY) / L.zoom;
-        const nw = Math.max(120, L.noteOrigW + dx);
-        const nh = Math.max(80, L.noteOrigH + dy);
+        const nw = Math.max(120, snap(L.noteOrigW + dx));
+        const nh = Math.max(80, snap(L.noteOrigH + dy));
         L.noteEl.style.width = `${nw}px`;
         L.noteEl.style.height = `${nh}px`;
         return;
