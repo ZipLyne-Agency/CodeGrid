@@ -127,6 +127,7 @@ pub fn run() {
             commands::set_project_search_roots,
             commands::rescan_project_roots,
             commands::detect_claude_skills,
+            commands::detect_all_skills,
             commands::get_available_models,
             commands::send_to_session,
             commands::dir_exists,

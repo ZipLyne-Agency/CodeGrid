@@ -1,10 +1,22 @@
-import { memo, useState, useCallback, useEffect, useRef } from "react";
+import { memo, useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useAppStore } from "../stores/appStore";
 import { useToastStore } from "../stores/toastStore";
 import {
   listMcps, addMcpServer, removeMcpServer, toggleMcpServer,
   getHomeDir, type McpServerConfig,
 } from "../lib/ipc";
+import { agentTheme, type AgentKind } from "../lib/paneTheme";
+
+// Display order for the per-agent groups.
+const AGENT_ORDER: AgentKind[] = ["claude", "codex", "cursor", "gemini", "grok"];
+
+function agentKindOf(agent: string): AgentKind {
+  return (AGENT_ORDER as string[]).includes(agent) ? (agent as AgentKind) : "shell";
+}
+
+function tildify(p: string): string {
+  return p.replace(/^\/Users\/[^/]+/, "~").replace(/^\/home\/[^/]+/, "~");
+}
 
 interface McpPreset {
   name: string;
@@ -165,6 +177,7 @@ export const McpManager = memo(function McpManager() {
   const { mcpManagerOpen, setMcpManagerOpen, mcpManagerDir } = useAppStore();
   const [servers, setServers] = useState<McpServerConfig[]>([]);
   const [filter, setFilter] = useState<"all" | "global" | "project">("all");
+  const [agentFilter, setAgentFilter] = useState<"all" | AgentKind>("all");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -206,17 +219,29 @@ export const McpManager = memo(function McpManager() {
     flashTimerRef.current = setTimeout(() => setSuccess(null), 2000);
   };
 
+  // Strip any annotation suffix the backend adds to source_file (e.g.
+  // "~/.claude.json (projects./Users/isaac)") so writes target a real path.
+  const writePath = (srv: McpServerConfig) => srv.source_file.replace(/\s+\(projects\..*\)$/, "");
+
   const handleToggle = useCallback(async (srv: McpServerConfig) => {
+    if (!srv.writable) {
+      setError(`${srv.name} is view-only (${srv.agent} stores MCP servers in TOML).`);
+      return;
+    }
     try {
-      await toggleMcpServer(srv.source_file, srv.name, !srv.enabled);
+      await toggleMcpServer(writePath(srv), srv.name, !srv.enabled);
       flash(`${srv.name} ${srv.enabled ? "disabled" : "enabled"}`);
       await refresh();
     } catch (e) { setError(String(e)); }
   }, [refresh]);
 
   const handleRemove = useCallback(async (srv: McpServerConfig) => {
+    if (!srv.writable) {
+      setError(`${srv.name} is view-only (${srv.agent} stores MCP servers in TOML).`);
+      return;
+    }
     try {
-      await removeMcpServer(srv.source_file, srv.name);
+      await removeMcpServer(writePath(srv), srv.name);
       flash(`Removed ${srv.name}`);
       await refresh();
     } catch (e) { setError(String(e)); }
@@ -271,10 +296,32 @@ export const McpManager = memo(function McpManager() {
     } catch (e) { setError(String(e)); }
   }, [parsedServers, dir, refresh]);
 
-  if (!mcpManagerOpen) return null;
+  const filtered = useMemo(() => servers.filter((s) => {
+    if (filter !== "all" && s.scope !== filter) return false;
+    if (agentFilter !== "all" && s.agent !== agentFilter) return false;
+    return true;
+  }), [servers, filter, agentFilter]);
 
-  const filtered = filter === "all" ? servers
-    : servers.filter((s) => filter === "global" ? s.scope === "global" : s.scope === "project");
+  // Group the (scope/agent-filtered) list by agent, ordered.
+  const grouped = useMemo(() => {
+    const byAgent: Record<string, McpServerConfig[]> = {};
+    for (const s of filtered) {
+      (byAgent[s.agent] ??= []).push(s);
+    }
+    const orderedAgents = [
+      ...AGENT_ORDER.filter((a) => byAgent[a]),
+      ...Object.keys(byAgent).filter((a) => !(AGENT_ORDER as string[]).includes(a)),
+    ];
+    return { byAgent, orderedAgents };
+  }, [filtered]);
+
+  const agentCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const s of servers) counts[s.agent] = (counts[s.agent] ?? 0) + 1;
+    return counts;
+  }, [servers]);
+
+  if (!mcpManagerOpen) return null;
 
   const globalCount = servers.filter((s) => s.scope === "global").length;
   const projectCount = servers.filter((s) => s.scope === "project").length;
@@ -507,73 +554,139 @@ export const McpManager = memo(function McpManager() {
           ))}
         </div>
 
-        {/* Server list */}
+        {/* Agent filter — only when servers span more than one agent */}
+        {Object.keys(agentCounts).length > 1 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", padding: "8px 16px", borderBottom: "1px solid var(--border-default)" }}>
+            <button onClick={() => setAgentFilter("all")} style={{
+              background: agentFilter === "all" ? "#d500f922" : "var(--bg-tertiary)",
+              border: `1px solid ${agentFilter === "all" ? "#d500f9" : "var(--border-default)"}`,
+              color: agentFilter === "all" ? "#d500f9" : "var(--text-muted)", fontSize: "10px",
+              fontFamily: "var(--font-ui)", cursor: "pointer", padding: "3px 9px", fontWeight: "bold",
+            }}>All ({servers.length})</button>
+            {[
+              ...AGENT_ORDER.filter((a) => agentCounts[a]),
+              ...Object.keys(agentCounts).filter((a) => !(AGENT_ORDER as string[]).includes(a)) as AgentKind[],
+            ].map((a) => {
+              const th = agentTheme(agentKindOf(a));
+              const active = agentFilter === a;
+              return (
+                <button key={a} onClick={() => setAgentFilter(a)} style={{
+                  display: "flex", alignItems: "center", gap: "5px",
+                  background: active ? `${th.color}22` : "var(--bg-tertiary)",
+                  border: `1px solid ${active ? th.color : "var(--border-default)"}`,
+                  color: active ? th.color : "var(--text-muted)", fontSize: "10px",
+                  fontFamily: "var(--font-ui)", cursor: "pointer", padding: "3px 9px", fontWeight: "bold",
+                }}>
+                  <span style={{ color: th.color }}>{th.glyph}</span>
+                  {th.label} ({agentCounts[a]})
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Server list — grouped by agent */}
         <div style={{ flex: 1, overflow: "auto" }}>
           {filtered.length === 0 ? (
             <div style={{ padding: "24px", textAlign: "center", color: "var(--text-faint)", fontSize: "11px" }}>
               No MCP servers configured
-              {filter !== "all" && " in this scope"}
+              {(filter !== "all" || agentFilter !== "all") && " in this view"}
             </div>
           ) : (
-            filtered.map((srv) => (
-              <div
-                key={`${srv.scope}-${srv.name}`}
-                style={{
-                  display: "flex", alignItems: "center", padding: "8px 16px", gap: "10px",
-                  borderBottom: "1px solid var(--bg-tertiary)", opacity: srv.enabled ? 1 : 0.5,
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = "#1a1a1a")}
-                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-              >
-                {/* Toggle */}
-                <button onClick={() => handleToggle(srv)} role="switch" aria-checked={srv.enabled}
-                  aria-label={`Toggle ${srv.name}`} style={{
-                  width: "28px", height: "14px", borderRadius: "7px", border: "none", cursor: "pointer",
-                  background: srv.enabled ? "#d500f9" : "var(--border-default)", position: "relative", flexShrink: 0,
-                }}>
+            grouped.orderedAgents.map((agent) => {
+              const th = agentTheme(agentKindOf(agent));
+              const list = grouped.byAgent[agent];
+              return (
+                <div key={agent}>
+                  {/* Agent header */}
                   <div style={{
-                    width: "10px", height: "10px", borderRadius: "50%", background: "var(--text-primary)",
-                    position: "absolute", top: "2px", transition: "left 0.15s",
-                    left: srv.enabled ? "16px" : "2px",
-                  }} />
-                </button>
+                    display: "flex", alignItems: "center", gap: "7px", padding: "6px 16px",
+                    background: "var(--bg-tertiary)", borderBottom: "1px solid var(--border-default)",
+                    position: "sticky", top: 0, zIndex: 1,
+                  }}>
+                    <span style={{ color: th.color, fontSize: "12px" }}>{th.glyph}</span>
+                    <span style={{ color: th.color, fontSize: "10px", fontWeight: "bold", letterSpacing: "1px" }}>{th.label.toUpperCase()}</span>
+                    <span style={{ color: "var(--text-faint)", fontSize: "10px" }}>{list.length} server{list.length !== 1 ? "s" : ""}</span>
+                    {!list[0].writable && (
+                      <span style={{ marginLeft: "auto", color: "var(--text-faint)", fontSize: "9px", letterSpacing: "0.5px", border: "1px solid var(--border-default)", padding: "1px 5px" }}>
+                        VIEW-ONLY (TOML)
+                      </span>
+                    )}
+                  </div>
 
-                {/* Info */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    <span style={{ color: "var(--text-primary)", fontSize: "11px", fontWeight: "bold" }}>{srv.name}</span>
-                    <span style={{
-                      fontSize: "10px", fontWeight: "bold", letterSpacing: "0.5px", padding: "1px 4px",
-                      border: `1px solid ${srv.scope === "global" ? "#4a9eff66" : "#00c85366"}`,
-                      color: srv.scope === "global" ? "var(--status-idle)" : "var(--status-running)",
-                    }}>{srv.scope.toUpperCase()}</span>
-                    <span style={{
-                      fontSize: "10px", fontWeight: "bold", letterSpacing: "0.5px", padding: "1px 4px",
-                      border: `1px solid ${srv.type === "http" ? "#ffab0066" : "#88888866"}`,
-                      color: srv.type === "http" ? "var(--status-waiting)" : "var(--text-muted)",
-                    }}>{srv.type === "http" ? "HTTP" : "STDIO"}</span>
-                  </div>
-                  <div style={{ color: "var(--text-faint)", fontSize: "10px", marginTop: "1px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {srv.type === "http" ? (srv.url ?? "http") : `${srv.command} ${srv.args.join(" ")}`}
-                  </div>
+                  {list.map((srv) => (
+                    <div
+                      key={`${srv.agent}-${srv.scope}-${srv.name}`}
+                      style={{
+                        display: "flex", alignItems: "center", padding: "8px 16px", gap: "10px",
+                        borderBottom: "1px solid var(--bg-tertiary)", opacity: srv.enabled ? 1 : 0.5,
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "#1a1a1a")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                    >
+                      {/* Toggle (or lock for view-only) */}
+                      {srv.writable ? (
+                        <button onClick={() => handleToggle(srv)} role="switch" aria-checked={srv.enabled}
+                          aria-label={`Toggle ${srv.name}`} style={{
+                          width: "28px", height: "14px", borderRadius: "7px", border: "none", cursor: "pointer",
+                          background: srv.enabled ? "#d500f9" : "var(--border-default)", position: "relative", flexShrink: 0,
+                        }}>
+                          <div style={{
+                            width: "10px", height: "10px", borderRadius: "50%", background: "var(--text-primary)",
+                            position: "absolute", top: "2px", transition: "left 0.15s",
+                            left: srv.enabled ? "16px" : "2px",
+                          }} />
+                        </button>
+                      ) : (
+                        <span title="View-only — this agent stores MCP servers in a TOML config" style={{
+                          width: "28px", textAlign: "center", color: "var(--text-faint)", fontSize: "11px", flexShrink: 0,
+                        }}>🔒</span>
+                      )}
+
+                      {/* Info */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <span style={{ color: "var(--text-primary)", fontSize: "11px", fontWeight: "bold" }}>{srv.name}</span>
+                          <span style={{
+                            fontSize: "10px", fontWeight: "bold", letterSpacing: "0.5px", padding: "1px 4px",
+                            border: `1px solid ${srv.scope === "global" ? "#4a9eff66" : "#00c85366"}`,
+                            color: srv.scope === "global" ? "var(--status-idle)" : "var(--status-running)",
+                          }}>{srv.scope.toUpperCase()}</span>
+                          <span style={{
+                            fontSize: "10px", fontWeight: "bold", letterSpacing: "0.5px", padding: "1px 4px",
+                            border: `1px solid ${srv.type === "http" ? "#ffab0066" : "#88888866"}`,
+                            color: srv.type === "http" ? "var(--status-waiting)" : "var(--text-muted)",
+                          }}>{srv.type === "http" ? "HTTP" : "STDIO"}</span>
+                        </div>
+                        <div style={{ color: "var(--text-faint)", fontSize: "10px", marginTop: "1px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {srv.type === "http" ? (srv.url ?? "http") : `${srv.command} ${srv.args.join(" ")}`}
+                        </div>
+                        <div style={{ color: "var(--border-strong)", fontSize: "9px", marginTop: "1px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {tildify(srv.source_file)}
+                        </div>
+                      </div>
+
+                      {/* Remove (writable agents only) */}
+                      {srv.writable && (
+                        <button onClick={() => handleRemove(srv)} style={{
+                          background: "none", border: "1px solid #ff3d0044", color: "var(--status-error)", fontSize: "10px",
+                          fontFamily: "var(--font-ui)", cursor: "pointer", padding: "2px 6px", flexShrink: 0,
+                        }}
+                          onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--status-error)")}
+                          onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#ff3d0044")}
+                        >REMOVE</button>
+                      )}
+                    </div>
+                  ))}
                 </div>
-
-                {/* Remove */}
-                <button onClick={() => handleRemove(srv)} style={{
-                  background: "none", border: "1px solid #ff3d0044", color: "var(--status-error)", fontSize: "10px",
-                  fontFamily: "var(--font-ui)", cursor: "pointer", padding: "2px 6px", flexShrink: 0,
-                }}
-                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--status-error)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#ff3d0044")}
-                >REMOVE</button>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 
         {/* Footer hint */}
         <div style={{ padding: "8px 16px", borderTop: "1px solid var(--border-default)", color: "var(--border-strong)", fontSize: "10px" }}>
-          Global: ~/.claude/mcp.json  {dir ? `| Project: ${dir.split("/").pop()}/.claude/mcp.json` : ""}
+          Aggregated from Claude, Codex, Cursor, Gemini &amp; Grok configs. + ADD writes to Claude (~/.claude.json); Codex &amp; Grok are view-only (TOML).
         </div>
       </div>
     </div>

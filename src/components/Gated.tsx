@@ -1,6 +1,7 @@
 import { type ReactNode, type CSSProperties } from "react";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { useEntitlementStore } from "../stores/entitlementStore";
+import { useAppStore } from "../stores/appStore";
 import { TIER_NAMES, STAKE_URL, PRO_POWER_THRESHOLD } from "../lib/entitlement";
 
 /**
@@ -92,6 +93,7 @@ export function Gated({
   const linkStatus = useEntitlementStore((s) => s.linkStatus);
   const startLink = useEntitlementStore((s) => s.startLink);
   const cancelLink = useEntitlementStore((s) => s.cancelLink);
+  const openProModal = useAppStore((s) => s.setProModalOpen);
 
   if (loading) return <>{loadingFallback ?? null}</>;
   if (current >= tier) return <>{children}</>;
@@ -146,9 +148,10 @@ export function Gated({
             stake ~{abbrev(needed)} more $GRID
           </span>
         </div>
-        <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+        <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
           <button style={primaryBtn} onClick={() => openExternal(STAKE_URL)}>Get $GRID →</button>
           <button style={ghostBtn} onClick={() => startLink()}>Re-check</button>
+          <button style={ghostBtn} onClick={() => openProModal(true)}>What&apos;s included →</button>
         </div>
       </div>
     );
@@ -184,9 +187,10 @@ export function Gated({
           <span style={{ color: "var(--text-accent)" }}>2.</span> Link your wallet to this app
         </span>
       </div>
-      <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+      <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
         <button style={primaryBtn} onClick={() => startLink()}>Link wallet</button>
         <button style={ghostBtn} onClick={() => openExternal(STAKE_URL)}>Get $GRID →</button>
+        <button style={ghostBtn} onClick={() => openProModal(true)}>What&apos;s included →</button>
       </div>
       {linkStatus === "timeout" ? (
         <div style={{ fontSize: 11, color: "var(--status-waiting, #ffab00)" }}>

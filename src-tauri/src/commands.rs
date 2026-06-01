@@ -1673,71 +1673,293 @@ pub struct SkillInfo {
     pub name: String,
     pub description: String,
     pub category: String,
+    /// Which agent this skill belongs to:
+    /// "claude" | "codex" | "cursor" | "gemini" | "grok".
+    pub agent: String,
 }
 
-#[tauri::command]
-pub async fn detect_claude_skills() -> Result<Vec<SkillInfo>, String> {
-    let mut skills = vec![
-        // General
-        SkillInfo { name: "/help".to_string(), description: "Get help with Claude Code".to_string(), category: "General".to_string() },
-        SkillInfo { name: "/clear".to_string(), description: "Clear conversation history".to_string(), category: "General".to_string() },
-        SkillInfo { name: "/compact".to_string(), description: "Compact conversation to save context".to_string(), category: "General".to_string() },
-        SkillInfo { name: "/cost".to_string(), description: "Show token usage and costs".to_string(), category: "General".to_string() },
-        SkillInfo { name: "/doctor".to_string(), description: "Check Claude Code health and config".to_string(), category: "General".to_string() },
-        SkillInfo { name: "/config".to_string(), description: "Open or edit configuration".to_string(), category: "General".to_string() },
-        SkillInfo { name: "/login".to_string(), description: "Log in to Anthropic".to_string(), category: "General".to_string() },
-        SkillInfo { name: "/logout".to_string(), description: "Log out of current account".to_string(), category: "General".to_string() },
-        SkillInfo { name: "/status".to_string(), description: "Show session status and info".to_string(), category: "General".to_string() },
-        SkillInfo { name: "/vim".to_string(), description: "Toggle vim keybindings".to_string(), category: "General".to_string() },
-        SkillInfo { name: "/permissions".to_string(), description: "View or modify tool permissions".to_string(), category: "General".to_string() },
-        SkillInfo { name: "/terminal-setup".to_string(), description: "Configure terminal integration".to_string(), category: "General".to_string() },
-        SkillInfo { name: "/mcp".to_string(), description: "Manage MCP server connections".to_string(), category: "General".to_string() },
-        // Project
-        SkillInfo { name: "/init".to_string(), description: "Initialize CLAUDE.md project file".to_string(), category: "Project".to_string() },
-        SkillInfo { name: "/memory".to_string(), description: "Save info to project memory".to_string(), category: "Project".to_string() },
-        SkillInfo { name: "/add-dir".to_string(), description: "Add a directory to context".to_string(), category: "Project".to_string() },
-        // Coding
-        SkillInfo { name: "/review".to_string(), description: "Review code changes".to_string(), category: "Coding".to_string() },
-        SkillInfo { name: "/bug".to_string(), description: "Report or investigate a bug".to_string(), category: "Coding".to_string() },
-        SkillInfo { name: "/pr-comments".to_string(), description: "Address PR review comments".to_string(), category: "Coding".to_string() },
-        SkillInfo { name: "/commit".to_string(), description: "Commit staged changes with a message".to_string(), category: "Coding".to_string() },
-        // Models
-        SkillInfo { name: "/model".to_string(), description: "Switch or display current model".to_string(), category: "Models".to_string() },
-        SkillInfo { name: "/fast".to_string(), description: "Toggle fast mode (faster output)".to_string(), category: "Models".to_string() },
-    ];
+/// Parse `name:` and `description:` from the first YAML frontmatter block of a
+/// SKILL.md (between the first pair of `---` fences). Handles quoted strings and
+/// `>` / `|` block scalars. Returns (name, description); either may be empty.
+fn parse_skill_frontmatter(content: &str) -> (Option<String>, Option<String>) {
+    let mut lines = content.lines();
+    // First non-empty line must be the opening fence.
+    let mut started = false;
+    for l in lines.by_ref() {
+        if l.trim().is_empty() {
+            continue;
+        }
+        if l.trim() == "---" {
+            started = true;
+        }
+        break;
+    }
+    if !started {
+        return (None, None);
+    }
 
-    // Detect custom skills from ~/.claude/skills/ and ~/.claude/commands/
-    let home = std::env::var("HOME").unwrap_or_default();
-    for dir_name in &["skills", "commands"] {
-        let config_path = format!("{home}/.claude/{dir_name}");
-        if let Ok(entries) = std::fs::read_dir(&config_path) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.extension().is_some_and(|e| e == "md" || e == "txt") {
-                    let name = path.file_stem()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or("unknown")
-                        .to_string();
-                    // Read first non-empty line as description
-                    let description = std::fs::read_to_string(&path)
-                        .ok()
-                        .and_then(|content| {
-                            content.lines()
-                                .find(|l| !l.trim().is_empty() && !l.starts_with('#') && !l.starts_with("---"))
-                                .map(|l| l.trim().chars().take(80).collect::<String>())
-                        })
-                        .unwrap_or_else(|| "Custom skill".to_string());
-                    skills.push(SkillInfo {
-                        name: format!("/{name}"),
-                        description,
-                        category: "Custom".to_string(),
-                    });
-                }
+    let mut name: Option<String> = None;
+    let mut description: Option<String> = None;
+    let mut collecting_block: Option<String> = None; // which key's block scalar we're in
+    let mut block_lines: Vec<String> = Vec::new();
+    let mut base_indent: Option<usize> = None;
+
+    let finish_block = |key: &str, block: &[String], name: &mut Option<String>, desc: &mut Option<String>| {
+        let joined = block.iter().map(|s| s.trim()).collect::<Vec<_>>().join(" ");
+        let joined = joined.trim().to_string();
+        if !joined.is_empty() {
+            match key {
+                "name" => *name = Some(joined),
+                "description" => *desc = Some(joined),
+                _ => {}
             }
+        }
+    };
+
+    for raw in lines {
+        let line = raw;
+        if line.trim() == "---" {
+            // closing fence
+            if let Some(ref key) = collecting_block {
+                finish_block(key, &block_lines, &mut name, &mut description);
+            }
+            break;
+        }
+
+        // If inside a block scalar, accumulate indented continuation lines.
+        if let Some(ref key) = collecting_block.clone() {
+            let indent = line.len() - line.trim_start().len();
+            let is_blank = line.trim().is_empty();
+            if base_indent.is_none() && !is_blank {
+                // First continuation line establishes the block's base indent.
+                base_indent = Some(indent);
+            }
+            let bi = base_indent.unwrap_or(0);
+            if is_blank || indent >= bi {
+                block_lines.push(line.to_string());
+                continue;
+            } else {
+                // block ended; flush and fall through to parse this line as a key.
+                finish_block(key, &block_lines, &mut name, &mut description);
+                collecting_block = None;
+                block_lines.clear();
+                base_indent = None;
+            }
+        }
+
+        let trimmed = line.trim_start();
+        // Only handle top-level keys (no leading indent) of interest.
+        if line.len() != trimmed.len() {
+            continue; // nested key, ignore
+        }
+        let (key, rest) = match trimmed.split_once(':') {
+            Some((k, v)) => (k.trim(), v.trim()),
+            None => continue,
+        };
+        if key != "name" && key != "description" {
+            continue;
+        }
+        if rest == ">" || rest == "|" || rest == ">-" || rest == "|-" || rest == ">+" || rest == "|+" {
+            collecting_block = Some(key.to_string());
+            block_lines.clear();
+            base_indent = None; // set on first continuation line
+            continue;
+        }
+        let value = rest.trim().trim_matches('"').trim_matches('\'').to_string();
+        if value.is_empty() {
+            continue;
+        }
+        match key {
+            "name" => name = Some(value),
+            "description" => description = Some(value),
+            _ => {}
         }
     }
 
+    // For block scalars we may have entered but the first continuation line sets
+    // base_indent: detect it lazily here is complex, so set it when pushing.
+    let _ = base_indent;
+    (name, description)
+}
+
+/// Scan a directory of `<name>/SKILL.md` skill folders, appending each discovered
+/// skill (deduped by canonical path and by display name within the agent).
+fn scan_skill_dirs(
+    out: &mut Vec<SkillInfo>,
+    seen_paths: &mut std::collections::HashSet<std::path::PathBuf>,
+    root: &str,
+    agent: &str,
+    category: &str,
+    skip_hidden: bool,
+) {
+    let entries = match std::fs::read_dir(root) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        let dir = entry.path();
+        if !dir.is_dir() {
+            continue;
+        }
+        let dir_name = dir.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        if skip_hidden && dir_name.starts_with('.') {
+            continue; // e.g. Codex's .system dir
+        }
+        let skill_file = dir.join("SKILL.md");
+        if !skill_file.exists() {
+            continue;
+        }
+        // Resolve symlinks so the same shared skill (~/.agents/skills/<name>) is
+        // only listed once per agent — many entries symlink into ~/.agents/skills.
+        let canon = skill_file.canonicalize().unwrap_or_else(|_| skill_file.clone());
+        if !seen_paths.insert(canon.clone()) {
+            continue; // already counted this exact file in this agent's pass
+        }
+        let content = std::fs::read_to_string(&skill_file).unwrap_or_default();
+        let (fm_name, fm_desc) = parse_skill_frontmatter(&content);
+        let name = fm_name.unwrap_or_else(|| dir_name.to_string());
+        // Dedupe by display name within this agent.
+        if out.iter().any(|s| s.agent == agent && s.name == name) {
+            continue;
+        }
+        let description = fm_desc
+            .map(|d| d.chars().take(160).collect::<String>())
+            .unwrap_or_else(|| "Skill".to_string());
+        out.push(SkillInfo { name, description, category: category.to_string(), agent: agent.to_string() });
+    }
+}
+
+/// Scan a directory of flat `<name>.md` command files (Claude slash commands).
+fn scan_command_files(out: &mut Vec<SkillInfo>, root: &str, agent: &str, category: &str) {
+    let entries = match std::fs::read_dir(root) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.extension().is_some_and(|e| e == "md") {
+            continue;
+        }
+        let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("").to_string();
+        if stem.is_empty() {
+            continue;
+        }
+        let name = format!("/{stem}");
+        if out.iter().any(|s| s.agent == agent && s.name == name) {
+            continue;
+        }
+        let content = std::fs::read_to_string(&path).unwrap_or_default();
+        let (_, fm_desc) = parse_skill_frontmatter(&content);
+        let description = fm_desc.or_else(|| {
+            content.lines()
+                .find(|l| !l.trim().is_empty() && !l.starts_with('#') && !l.starts_with("---"))
+                .map(|l| l.trim().chars().take(120).collect::<String>())
+        }).unwrap_or_else(|| "Slash command".to_string());
+        out.push(SkillInfo { name, description, category: category.to_string(), agent: agent.to_string() });
+    }
+}
+
+/// Built-in Claude Code slash commands (not on disk).
+fn builtin_claude_commands() -> Vec<SkillInfo> {
+    let mk = |name: &str, desc: &str, cat: &str| SkillInfo {
+        name: name.to_string(), description: desc.to_string(), category: cat.to_string(), agent: "claude".to_string(),
+    };
+    vec![
+        mk("/help", "Get help with Claude Code", "General"),
+        mk("/clear", "Clear conversation history", "General"),
+        mk("/compact", "Compact conversation to save context", "General"),
+        mk("/cost", "Show token usage and costs", "General"),
+        mk("/doctor", "Check Claude Code health and config", "General"),
+        mk("/config", "Open or edit configuration", "General"),
+        mk("/login", "Log in to Anthropic", "General"),
+        mk("/logout", "Log out of current account", "General"),
+        mk("/status", "Show session status and info", "General"),
+        mk("/vim", "Toggle vim keybindings", "General"),
+        mk("/permissions", "View or modify tool permissions", "General"),
+        mk("/terminal-setup", "Configure terminal integration", "General"),
+        mk("/mcp", "Manage MCP server connections", "General"),
+        mk("/init", "Initialize CLAUDE.md project file", "Project"),
+        mk("/memory", "Save info to project memory", "Project"),
+        mk("/add-dir", "Add a directory to context", "Project"),
+        mk("/review", "Review code changes", "Coding"),
+        mk("/bug", "Report or investigate a bug", "Coding"),
+        mk("/pr-comments", "Address PR review comments", "Coding"),
+        mk("/commit", "Commit staged changes with a message", "Coding"),
+        mk("/model", "Switch or display current model", "Models"),
+        mk("/fast", "Toggle fast mode (faster output)", "Models"),
+    ]
+}
+
+/// Aggregate skills across all supported agents, each entry tagged with `agent`.
+#[tauri::command]
+pub async fn detect_all_skills(project_dir: Option<String>) -> Result<Vec<SkillInfo>, String> {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let mut skills: Vec<SkillInfo> = Vec::new();
+
+    let validated_dir = match &project_dir {
+        Some(pdir) => validate_dir(pdir).ok(),
+        None => None,
+    };
+
+    // ===== CLAUDE =====
+    skills.extend(builtin_claude_commands());
+    {
+        // Per-agent canonical-path dedupe set.
+        let mut seen: std::collections::HashSet<std::path::PathBuf> = std::collections::HashSet::new();
+        scan_skill_dirs(&mut skills, &mut seen, &format!("{home}/.claude/skills"), "claude", "Custom", true);
+        // Plugin marketplace skills: ~/.claude/plugins/marketplaces/*/skills/*/SKILL.md
+        if let Ok(markets) = std::fs::read_dir(format!("{home}/.claude/plugins/marketplaces")) {
+            for m in markets.flatten() {
+                let p = m.path();
+                if p.is_dir() {
+                    scan_skill_dirs(&mut skills, &mut seen, &format!("{}/skills", p.display()), "claude", "Plugin", true);
+                }
+            }
+        }
+        // Project skills.
+        if let Some(ref dir) = validated_dir {
+            scan_skill_dirs(&mut skills, &mut seen, &format!("{dir}/skills"), "claude", "Project", true);
+            scan_skill_dirs(&mut skills, &mut seen, &format!("{dir}/.claude/skills"), "claude", "Project", true);
+        }
+    }
+    // Slash commands (flat .md).
+    scan_command_files(&mut skills, &format!("{home}/.claude/commands"), "claude", "Custom");
+
+    // ===== CODEX =====
+    {
+        let mut seen: std::collections::HashSet<std::path::PathBuf> = std::collections::HashSet::new();
+        scan_skill_dirs(&mut skills, &mut seen, &format!("{home}/.codex/skills"), "codex", "Custom", true); // skips .system
+    }
+
+    // ===== CURSOR (skills-cursor is primary; merge skills, dedupe by name) =====
+    {
+        let mut seen: std::collections::HashSet<std::path::PathBuf> = std::collections::HashSet::new();
+        scan_skill_dirs(&mut skills, &mut seen, &format!("{home}/.cursor/skills-cursor"), "cursor", "Custom", true);
+        scan_skill_dirs(&mut skills, &mut seen, &format!("{home}/.cursor/skills"), "cursor", "Custom", true);
+    }
+
+    // ===== GEMINI (none on this machine — returns empty gracefully) =====
+    {
+        let mut seen: std::collections::HashSet<std::path::PathBuf> = std::collections::HashSet::new();
+        scan_skill_dirs(&mut skills, &mut seen, &format!("{home}/.gemini/skills"), "gemini", "Custom", true);
+    }
+
+    // ===== GROK =====
+    {
+        let mut seen: std::collections::HashSet<std::path::PathBuf> = std::collections::HashSet::new();
+        scan_skill_dirs(&mut skills, &mut seen, &format!("{home}/.grok/skills"), "grok", "Custom", true);
+        scan_skill_dirs(&mut skills, &mut seen, &format!("{home}/.grok/bundled/skills"), "grok", "Bundled", true);
+    }
+
     Ok(skills)
+}
+
+/// Back-compat: original single-agent command, now delegates to the aggregator
+/// and returns only Claude entries.
+#[tauri::command]
+pub async fn detect_claude_skills() -> Result<Vec<SkillInfo>, String> {
+    let all = detect_all_skills(None).await?;
+    Ok(all.into_iter().filter(|s| s.agent == "claude").collect())
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -2906,12 +3128,18 @@ fn validate_mcp_config_path(config_path: &str) -> Result<(), String> {
         return Err("MCP config path must be a .json file".to_string());
     }
 
-    // Only allow known MCP config file names.
+    // Only allow known MCP config file names. `settings.json` is included for
+    // Gemini (~/.gemini/settings.json) whose mcpServers live there. TOML configs
+    // (Codex/Grok) are deliberately NOT writable and never reach this path.
     let file_name = path.file_name()
         .and_then(|n| n.to_str())
         .ok_or_else(|| "Invalid MCP config filename".to_string())?;
-    if file_name != "mcp.json" && file_name != ".mcp.json" && file_name != ".claude.json" {
-        return Err("MCP config filename must be mcp.json, .mcp.json, or .claude.json".to_string());
+    if file_name != "mcp.json"
+        && file_name != ".mcp.json"
+        && file_name != ".claude.json"
+        && file_name != "settings.json"
+    {
+        return Err("MCP config filename must be mcp.json, .mcp.json, .claude.json, or settings.json".to_string());
     }
 
     if !is_path_or_parent_within_allowed_roots(path) {
@@ -2934,6 +3162,13 @@ pub struct McpServerConfig {
     pub server_type: String, // "stdio" or "http"
     #[serde(default)]
     pub url: Option<String>,
+    /// Which agent CLI this server belongs to:
+    /// "claude" | "codex" | "cursor" | "gemini" | "grok".
+    pub agent: String,
+    /// Whether this entry can be edited/removed through the app.
+    /// True for JSON-backed agents (claude/cursor/gemini); false for TOML
+    /// (codex/grok) which are view-only here.
+    pub writable: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -3017,72 +3252,206 @@ fn read_mcp_file(path: &str) -> Option<McpConfigFile> {
     serde_json::from_str(&cleaned).ok()
 }
 
+/// Build an McpServerConfig from a parsed JSON-style entry.
+fn mcp_from_entry(
+    name: &str,
+    entry: &McpServerEntry,
+    scope: &str,
+    source_file: &str,
+    agent: &str,
+    writable: bool,
+) -> McpServerConfig {
+    let stype = entry.server_type.clone().unwrap_or_else(|| {
+        if entry.url.is_some() { "http".to_string() } else { "stdio".to_string() }
+    });
+    McpServerConfig {
+        name: name.to_string(),
+        command: entry.command.clone().unwrap_or_default(),
+        args: entry.args.clone(),
+        env: entry.env.clone(),
+        enabled: !entry.disabled.unwrap_or(false),
+        scope: scope.to_string(),
+        source_file: source_file.to_string(),
+        server_type: stype,
+        url: entry.url.clone(),
+        agent: agent.to_string(),
+        writable,
+    }
+}
+
+/// Push servers from a JSON mcpServers file, skipping duplicates already present
+/// for the same (agent, name, scope) so the same store isn't listed twice.
+fn push_json_mcp_file(
+    out: &mut Vec<McpServerConfig>,
+    path: &str,
+    scope: &str,
+    agent: &str,
+    writable: bool,
+) {
+    if let Some(config) = read_mcp_file(path) {
+        for (name, entry) in &config.mcp_servers {
+            if out.iter().any(|s| s.agent == agent && s.name == *name && s.scope == scope) {
+                continue;
+            }
+            out.push(mcp_from_entry(name, entry, scope, path, agent, writable));
+        }
+    }
+}
+
+// --- TOML config readers (Codex + Grok) ---------------------------------
+
+#[derive(Debug, Deserialize)]
+struct TomlMcpRoot {
+    #[serde(default)]
+    mcp_servers: std::collections::HashMap<String, TomlMcpServer>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TomlMcpServer {
+    #[serde(default)]
+    command: Option<String>,
+    #[serde(default)]
+    args: Vec<String>,
+    #[serde(default)]
+    env: std::collections::HashMap<String, String>,
+    #[serde(default)]
+    url: Option<String>,
+    #[serde(default, rename = "type")]
+    server_type: Option<String>,
+    #[serde(default)]
+    headers: Option<std::collections::HashMap<String, String>>,
+    #[serde(default)]
+    disabled: Option<bool>,
+}
+
+/// Read `[mcp_servers.<name>]` blocks from a TOML config file (Codex / Grok).
+/// These agents are view-only here (writable=false) — we never serialize TOML.
+fn push_toml_mcp_file(
+    out: &mut Vec<McpServerConfig>,
+    path: &str,
+    scope: &str,
+    agent: &str,
+) {
+    let content = match std::fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+    let root: TomlMcpRoot = match toml::from_str(&content) {
+        Ok(r) => r,
+        Err(_) => return,
+    };
+    for (name, srv) in &root.mcp_servers {
+        if out.iter().any(|s| s.agent == agent && s.name == *name && s.scope == scope) {
+            continue;
+        }
+        let entry = McpServerEntry {
+            command: srv.command.clone(),
+            args: srv.args.clone(),
+            env: srv.env.clone(),
+            disabled: srv.disabled,
+            server_type: srv.server_type.clone(),
+            url: srv.url.clone(),
+            headers: srv.headers.clone(),
+        };
+        out.push(mcp_from_entry(name, &entry, scope, path, agent, false));
+    }
+}
+
+/// Read Claude's canonical ~/.claude.json — top-level `mcpServers` (global) AND
+/// per-project `projects.<dir>.mcpServers` (project scope). This is where the
+/// Claude CLI actually writes; the old reader missed the per-project map.
+fn push_claude_json(out: &mut Vec<McpServerConfig>, path: &str, project_dir: Option<&str>) {
+    let content = match std::fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+    let cleaned = strip_json_comments(&content);
+    let doc: serde_json::Value = match serde_json::from_str(&cleaned) {
+        Ok(v) => v,
+        Err(_) => return,
+    };
+
+    // Top-level mcpServers → global scope.
+    if let Some(servers) = doc.get("mcpServers").and_then(|v| v.as_object()) {
+        for (name, val) in servers {
+            if out.iter().any(|s| s.agent == "claude" && s.name == *name && s.scope == "global") {
+                continue;
+            }
+            if let Ok(entry) = serde_json::from_value::<McpServerEntry>(val.clone()) {
+                out.push(mcp_from_entry(name, &entry, "global", path, "claude", true));
+            }
+        }
+    }
+
+    // Per-project mcpServers → project scope. If a project_dir is provided, only
+    // surface that project's servers; otherwise list them all (tagged by dir).
+    if let Some(projects) = doc.get("projects").and_then(|v| v.as_object()) {
+        for (proj_path, proj_val) in projects {
+            if let Some(pd) = project_dir {
+                if proj_path != pd {
+                    continue;
+                }
+            }
+            let Some(servers) = proj_val.get("mcpServers").and_then(|v| v.as_object()) else { continue };
+            for (name, val) in servers {
+                if out.iter().any(|s| s.agent == "claude" && s.name == *name && s.scope == "project") {
+                    continue;
+                }
+                if let Ok(entry) = serde_json::from_value::<McpServerEntry>(val.clone()) {
+                    // Note the originating project in source_file for clarity.
+                    let src = format!("{path} (projects.{proj_path})");
+                    out.push(mcp_from_entry(name, &entry, "project", &src, "claude", true));
+                }
+            }
+        }
+    }
+}
+
 #[tauri::command]
 pub async fn list_mcps(project_dir: Option<String>) -> Result<Vec<McpServerConfig>, String> {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
     let mut servers: Vec<McpServerConfig> = Vec::new();
 
-    // 1. Global MCPs: ~/.claude/mcp.json or ~/.claude.json
-    let global_paths = [
-        format!("{home}/.claude/mcp.json"),
-        format!("{home}/.claude.json"),
-    ];
+    let validated_dir = match &project_dir {
+        Some(pdir) => Some(validate_dir(pdir)?),
+        None => None,
+    };
 
-    for gpath in &global_paths {
-        if let Some(config) = read_mcp_file(gpath) {
-            for (name, entry) in &config.mcp_servers {
-                // Skip if a server with this name was already loaded from a prior global config
-                if servers.iter().any(|s| s.name == *name && s.scope == "global") {
-                    continue;
-                }
-                let stype = entry.server_type.clone().unwrap_or_else(|| {
-                    if entry.url.is_some() { "http".to_string() } else { "stdio".to_string() }
-                });
-                servers.push(McpServerConfig {
-                    name: name.clone(),
-                    command: entry.command.clone().unwrap_or_default(),
-                    args: entry.args.clone(),
-                    env: entry.env.clone(),
-                    enabled: !entry.disabled.unwrap_or(false),
-                    scope: "global".to_string(),
-                    source_file: gpath.clone(),
-                    server_type: stype,
-                    url: entry.url.clone(),
-                });
-            }
-        }
+    // ===== CLAUDE =====
+    // Canonical store: ~/.claude.json (top-level + projects.<dir>.mcpServers).
+    push_claude_json(
+        &mut servers,
+        &format!("{home}/.claude.json"),
+        validated_dir.as_deref(),
+    );
+    // Convention copy used by this app: ~/.claude/mcp.json (global).
+    push_json_mcp_file(&mut servers, &format!("{home}/.claude/mcp.json"), "global", "claude", true);
+    // Project-scoped Claude files.
+    if let Some(ref dir) = validated_dir {
+        push_json_mcp_file(&mut servers, &format!("{dir}/.mcp.json"), "project", "claude", true);
+        push_json_mcp_file(&mut servers, &format!("{dir}/.claude/mcp.json"), "project", "claude", true);
     }
 
-    // 2. Project MCPs: <project>/.claude/mcp.json or <project>/.mcp.json
-    if let Some(ref pdir) = project_dir {
-        let dir = validate_dir(pdir)?;
-        let project_paths = [
-            format!("{dir}/.claude/mcp.json"),
-            format!("{dir}/.mcp.json"),
-        ];
+    // ===== CODEX (TOML, view-only) =====
+    push_toml_mcp_file(&mut servers, &format!("{home}/.codex/config.toml"), "global", "codex");
+    if let Some(ref dir) = validated_dir {
+        push_toml_mcp_file(&mut servers, &format!("{dir}/.codex/config.toml"), "project", "codex");
+    }
 
-        for ppath in &project_paths {
-            if let Some(config) = read_mcp_file(ppath) {
-                for (name, entry) in &config.mcp_servers {
-                    // Remove any global or earlier project duplicate with the same name
-                    servers.retain(|s| s.name != *name);
-                    let stype = entry.server_type.clone().unwrap_or_else(|| {
-                        if entry.url.is_some() { "http".to_string() } else { "stdio".to_string() }
-                    });
-                    servers.push(McpServerConfig {
-                        name: name.clone(),
-                        command: entry.command.clone().unwrap_or_default(),
-                        args: entry.args.clone(),
-                        env: entry.env.clone(),
-                        enabled: !entry.disabled.unwrap_or(false),
-                        scope: "project".to_string(),
-                        source_file: ppath.clone(),
-                        server_type: stype,
-                        url: entry.url.clone(),
-                    });
-                }
-            }
-        }
+    // ===== CURSOR (JSON) =====
+    push_json_mcp_file(&mut servers, &format!("{home}/.cursor/mcp.json"), "global", "cursor", true);
+    if let Some(ref dir) = validated_dir {
+        push_json_mcp_file(&mut servers, &format!("{dir}/.cursor/mcp.json"), "project", "cursor", true);
+    }
+
+    // ===== GEMINI (JSON; mcpServers inside settings.json) =====
+    push_json_mcp_file(&mut servers, &format!("{home}/.gemini/settings.json"), "global", "gemini", true);
+
+    // ===== GROK (TOML native + JSON settings.json compat) =====
+    push_toml_mcp_file(&mut servers, &format!("{home}/.grok/config.toml"), "global", "grok");
+    push_json_mcp_file(&mut servers, &format!("{home}/.grok/settings.json"), "global", "grok", false);
+    if let Some(ref dir) = validated_dir {
+        push_toml_mcp_file(&mut servers, &format!("{dir}/.grok/config.toml"), "project", "grok");
     }
 
     Ok(servers)

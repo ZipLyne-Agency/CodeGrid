@@ -496,7 +496,7 @@ dependencies = [
 
 [[package]]
 name = "codegrid"
-version = "0.1.60"
+version = "0.1.62"
 dependencies = [
  "chrono",
  "keyring",
@@ -517,6 +517,7 @@ dependencies = [
  "tauri-plugin-shell",
  "tauri-plugin-updater",
  "tokio",
+ "toml 0.8.2",
  "uuid",
  "walkdir",
  "which",

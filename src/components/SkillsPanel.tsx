@@ -2,7 +2,8 @@ import { memo, useState, useMemo, useCallback } from "react";
 import { useAppStore } from "../stores/appStore";
 import { useSessionStore } from "../stores/sessionStore";
 import { useToastStore } from "../stores/toastStore";
-import { sendToSession } from "../lib/ipc";
+import { sendToSession, type SkillInfo } from "../lib/ipc";
+import { agentTheme, type AgentKind } from "../lib/paneTheme";
 
 const CATEGORY_COLORS: Record<string, string> = {
   General: "#4a9eff",
@@ -10,41 +11,68 @@ const CATEGORY_COLORS: Record<string, string> = {
   Project: "#ff8c00",
   Models: "#d500f9",
   Custom: "#00e5ff",
+  Plugin: "#ffab00",
+  Bundled: "#9aa0ff",
 };
+
+// Display order for the per-agent sections.
+const AGENT_ORDER: AgentKind[] = ["claude", "codex", "cursor", "gemini", "grok"];
+
+function agentKindOf(agent: string): AgentKind {
+  return (AGENT_ORDER as string[]).includes(agent) ? (agent as AgentKind) : "shell";
+}
 
 export const SkillsPanel = memo(function SkillsPanel() {
   const { skillsPanelOpen, setSkillsPanelOpen, skills } = useAppStore();
   const focusedSessionId = useSessionStore((s) => s.focusedSessionId);
   const addToast = useToastStore((s) => s.addToast);
   const [filter, setFilter] = useState("");
+  const [agentFilter, setAgentFilter] = useState<"all" | AgentKind>("all");
   const [sentSkill, setSentSkill] = useState<string | null>(null);
 
+  // Counts per agent (pre text-filter) for the segmented control.
+  const agentCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const s of skills) counts[s.agent] = (counts[s.agent] ?? 0) + 1;
+    return counts;
+  }, [skills]);
+
   const filtered = useMemo(() => {
-    if (!filter) return skills;
     const lower = filter.toLowerCase();
-    return skills.filter(
-      (s) =>
+    return skills.filter((s) => {
+      if (agentFilter !== "all" && s.agent !== agentFilter) return false;
+      if (!lower) return true;
+      return (
         s.name.toLowerCase().includes(lower) ||
         s.description.toLowerCase().includes(lower) ||
-        s.category.toLowerCase().includes(lower),
-    );
-  }, [skills, filter]);
+        s.category.toLowerCase().includes(lower) ||
+        s.agent.toLowerCase().includes(lower)
+      );
+    });
+  }, [skills, filter, agentFilter]);
 
-  const grouped = useMemo(() => {
-    const groups: Record<string, typeof skills> = {};
+  // Group by agent (ordered), then by category within each agent.
+  const groupedByAgent = useMemo(() => {
+    const byAgent: Record<string, Record<string, SkillInfo[]>> = {};
     for (const skill of filtered) {
-      if (!groups[skill.category]) groups[skill.category] = [];
-      groups[skill.category].push(skill);
+      const a = skill.agent;
+      if (!byAgent[a]) byAgent[a] = {};
+      if (!byAgent[a][skill.category]) byAgent[a][skill.category] = [];
+      byAgent[a][skill.category].push(skill);
     }
-    return groups;
+    const orderedAgents = [
+      ...AGENT_ORDER.filter((a) => byAgent[a]),
+      ...Object.keys(byAgent).filter((a) => !(AGENT_ORDER as string[]).includes(a)),
+    ];
+    return { byAgent, orderedAgents };
   }, [filtered]);
 
   const handleSendSkill = useCallback(
-    async (skillName: string) => {
+    async (skillName: string, agent: string) => {
       if (!focusedSessionId) return;
       try {
         await sendToSession(focusedSessionId, skillName);
-        setSentSkill(skillName);
+        setSentSkill(`${agent}::${skillName}`);
         setTimeout(() => setSentSkill(null), 1500);
       } catch (e) {
         addToast(`Failed to send skill: ${e}`, "error");
@@ -78,11 +106,11 @@ export const SkillsPanel = memo(function SkillsPanel() {
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label="Claude Code Skills"
+        aria-label="Agent Skills"
         style={{
           position: "relative",
-          width: "520px",
-          maxHeight: "520px",
+          width: "560px",
+          maxHeight: "560px",
           background: "#141414",
           border: "1px solid #ff8c00",
           fontFamily: "var(--font-ui)",
@@ -103,10 +131,10 @@ export const SkillsPanel = memo(function SkillsPanel() {
         >
           <div>
             <div style={{ color: "#ff8c00", fontSize: "12px", fontWeight: "bold", letterSpacing: "1px" }}>
-              CLAUDE CODE SKILLS
+              SKILLS
             </div>
             <div style={{ color: "#555555", fontSize: "10px", marginTop: "2px" }}>
-              Click any skill to send it to the focused pane
+              {skills.length} across all agents — click any skill to send it to the focused pane
             </div>
           </div>
           <button
@@ -146,67 +174,137 @@ export const SkillsPanel = memo(function SkillsPanel() {
           />
         </div>
 
-        {/* Skills list */}
-        <div style={{ flex: 1, overflow: "auto", padding: "8px 0" }}>
-          {Object.entries(grouped).map(([category, catSkills]) => (
-            <div key={category}>
-              <div
+        {/* Agent filter — segmented control */}
+        <div style={{ display: "flex", borderBottom: "1px solid #2a2a2a", overflowX: "auto" }}>
+          {(["all", ...AGENT_ORDER] as const).map((a) => {
+            const isAll = a === "all";
+            const theme = isAll ? null : agentTheme(a);
+            const count = isAll ? skills.length : (agentCounts[a] ?? 0);
+            const active = agentFilter === a;
+            const color = isAll ? "#ff8c00" : (theme as { color: string }).color;
+            return (
+              <button
+                key={a}
+                onClick={() => setAgentFilter(a as "all" | AgentKind)}
                 style={{
-                  padding: "4px 16px",
+                  flex: "1 0 auto",
+                  padding: "7px 10px",
+                  background: active ? "#1e1e1e" : "transparent",
+                  border: "none",
+                  borderBottom: active ? `2px solid ${color}` : "2px solid transparent",
+                  color: active ? color : "#777777",
                   fontSize: "10px",
-                  color: CATEGORY_COLORS[category] ?? "#888888",
-                  letterSpacing: "1px",
+                  fontFamily: "var(--font-ui)",
+                  cursor: "pointer",
+                  letterSpacing: "0.5px",
                   fontWeight: "bold",
-                  textTransform: "uppercase",
-                  marginTop: "4px",
+                  whiteSpace: "nowrap",
                 }}
               >
-                {category}
-              </div>
-              {catSkills.map((skill) => (
+                {isAll ? "ALL" : `${theme!.glyph} ${theme!.tag}`} ({count})
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Skills list — grouped by agent, then category */}
+        <div style={{ flex: 1, overflow: "auto", padding: "8px 0" }}>
+          {groupedByAgent.orderedAgents.map((agent) => {
+            const theme = agentTheme(agentKindOf(agent));
+            const cats = groupedByAgent.byAgent[agent];
+            const agentTotal = Object.values(cats).reduce((n, arr) => n + arr.length, 0);
+            return (
+              <div key={agent}>
+                {/* Agent header */}
                 <div
-                  key={skill.name}
-                  onClick={() => handleSendSkill(skill.name)}
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "6px 16px",
-                    cursor: focusedSessionId ? "pointer" : "default",
-                    opacity: focusedSessionId ? 1 : 0.5,
-                  }}
-                  onMouseEnter={(e) => {
-                    if (focusedSessionId)
-                      e.currentTarget.style.background = "#1e1e1e";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "transparent";
+                    gap: "6px",
+                    padding: "6px 16px 4px",
+                    marginTop: "2px",
+                    borderTop: "1px solid #1c1c1c",
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <span
+                  <span style={{ color: theme.color, fontSize: "12px" }}>{theme.glyph}</span>
+                  <span style={{ color: theme.color, fontSize: "11px", fontWeight: "bold", letterSpacing: "1px" }}>
+                    {theme.tag}
+                  </span>
+                  <span style={{ color: "#555555", fontSize: "10px" }}>
+                    {agentTotal} skill{agentTotal !== 1 ? "s" : ""}
+                  </span>
+                </div>
+
+                {Object.entries(cats).map(([category, catSkills]) => (
+                  <div key={`${agent}-${category}`}>
+                    <div
                       style={{
-                        color: "#ff8c00",
-                        fontSize: "12px",
+                        padding: "3px 16px 3px 24px",
+                        fontSize: "9px",
+                        color: CATEGORY_COLORS[category] ?? "#888888",
+                        letterSpacing: "1px",
                         fontWeight: "bold",
-                        minWidth: "120px",
+                        textTransform: "uppercase",
                       }}
                     >
-                      {skill.name}
-                    </span>
-                    <span style={{ color: "#888888", fontSize: "11px" }}>
-                      {skill.description}
-                    </span>
+                      {category}
+                    </div>
+                    {catSkills.map((skill) => {
+                      const sentKey = `${skill.agent}::${skill.name}`;
+                      return (
+                        <div
+                          key={`${agent}-${category}-${skill.name}`}
+                          onClick={() => handleSendSkill(skill.name, skill.agent)}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            padding: "6px 16px 6px 24px",
+                            cursor: focusedSessionId ? "pointer" : "default",
+                            opacity: focusedSessionId ? 1 : 0.5,
+                          }}
+                          onMouseEnter={(e) => {
+                            if (focusedSessionId) e.currentTarget.style.background = "#1e1e1e";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = "transparent";
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+                            <span
+                              style={{
+                                color: theme.color,
+                                fontSize: "12px",
+                                fontWeight: "bold",
+                                minWidth: "120px",
+                                flexShrink: 0,
+                              }}
+                            >
+                              {skill.name}
+                            </span>
+                            <span
+                              style={{
+                                color: "#888888",
+                                fontSize: "11px",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {skill.description}
+                            </span>
+                          </div>
+                          {sentSkill === sentKey && (
+                            <span style={{ color: "#00c853", fontSize: "10px", flexShrink: 0 }}>Sent!</span>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                  {sentSkill === skill.name && (
-                    <span style={{ color: "#00c853", fontSize: "10px" }}>
-                      Sent!
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          ))}
+                ))}
+              </div>
+            );
+          })}
 
           {filtered.length === 0 && (
             <div style={{ padding: "20px", textAlign: "center", color: "#555555", fontSize: "11px" }}>

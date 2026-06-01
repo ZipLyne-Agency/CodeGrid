@@ -32,6 +32,8 @@ interface AppState {
   dependencyGraphDir: string | null;
   reviewPanelOpen: boolean;
   reviewDir: string | null;
+  /** "Everything Pro gets you" explainer modal. */
+  proModalOpen: boolean;
 
   setSkills: (skills: SkillInfo[]) => void;
   setModels: (models: ModelInfo[]) => void;
@@ -52,6 +54,7 @@ interface AppState {
   setProjectSearchOpen: (open: boolean, dir?: string) => void;
   setDependencyGraphOpen: (open: boolean, dir?: string) => void;
   setReviewPanelOpen: (open: boolean, dir?: string) => void;
+  setProModalOpen: (open: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -82,6 +85,7 @@ export const useAppStore = create<AppState>((set) => ({
   dependencyGraphOpen: false,
   dependencyGraphDir: null,
   reviewPanelOpen: false,
+  proModalOpen: false,
   reviewDir: null,
 
   setSkills: (skills) => set({ skills }),
@@ -106,6 +110,7 @@ export const useAppStore = create<AppState>((set) => ({
   setProjectSearchOpen: (open, dir) => set({ projectSearchOpen: open, projectSearchDir: dir ?? null }),
   setDependencyGraphOpen: (open, dir) => set({ dependencyGraphOpen: open, dependencyGraphDir: dir ?? null }),
   setReviewPanelOpen: (open, dir) => set({ reviewPanelOpen: open, reviewDir: dir ?? null }),
+  setProModalOpen: (open) => set({ proModalOpen: open }),
   setCodeViewerOpen: (open, filePath, opts) => set({
     codeViewerOpen: open,
     codeViewerFile: filePath ?? null,

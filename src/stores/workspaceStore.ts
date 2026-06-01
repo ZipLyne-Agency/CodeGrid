@@ -46,7 +46,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   activeWorkspaceId: null,
   sidebarOpen: true,
   activePanel: "files" as ActivityPanel,
-  terminalListPlacement: "topbar",
+  terminalListPlacement: "sidebar",
   terminalDrawerOpen: true,
   settingsOpen: false,
   commandPaletteOpen: false,

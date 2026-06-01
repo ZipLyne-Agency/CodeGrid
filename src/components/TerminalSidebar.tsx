@@ -18,6 +18,27 @@ function isTerminalSession(s: { kind?: string }): boolean {
   return s.kind !== "note" && s.kind !== "browser";
 }
 
+/** The collapsible groups the drawer splits panes into, keyed by pane kind. */
+type SectionKey = "terminal" | "browser" | "scratch" | "note";
+
+const SECTION_META: Record<SectionKey, { label: string; glyph: string; color: string }> = {
+  terminal: { label: "Terminals", glyph: "▤", color: "var(--text-accent)" },
+  browser: { label: "Preview browsers", glyph: "◧", color: "var(--agent-browser)" },
+  scratch: { label: "Scratch", glyph: "⌁", color: "#ff8c00" },
+  note: { label: "Notes", glyph: "✎", color: "var(--agent-note)" },
+};
+
+// Section render order (terminals first).
+const SECTION_ORDER: SectionKey[] = ["terminal", "browser", "scratch", "note"];
+
+/** Map a session's pane kind to its drawer section (terminal & undefined → terminals). */
+function sectionForSession(s: { kind?: string }): SectionKey {
+  if (s.kind === "browser") return "browser";
+  if (s.kind === "scratch") return "scratch";
+  if (s.kind === "note") return "note";
+  return "terminal";
+}
+
 /** Agent-backed terminals (claude/codex/…) — the only ones worth a "done" flash. */
 function isAgentSession(s: { command?: string | null; activityName?: string | null }): boolean {
   const cmd = (s.command ?? "").toLowerCase();
@@ -73,24 +94,55 @@ export const TerminalSidebar = memo(function TerminalSidebar({
     [sessions, activeWorkspaceId],
   );
 
-  const terminalTabs = useMemo(() => {
-    const list = activeSessions.filter(isTerminalSession);
-    if (sortMode === "type") {
-      return [...list].sort((a, b) => {
-        const ta = detectAgent(a.command).label;
-        const tb = detectAgent(b.command).label;
-        return ta.localeCompare(tb) || (a.pane_number ?? 0) - (b.pane_number ?? 0);
-      });
-    }
-    if (sortMode === "recent") {
-      return [...list].sort((a, b) => {
-        const da = new Date(a.created_at).getTime() || 0;
-        const db = new Date(b.created_at).getTime() || 0;
-        return db - da || (b.pane_number ?? 0) - (a.pane_number ?? 0);
-      });
-    }
-    return list;
-  }, [activeSessions, sortMode]);
+  // Apply the active sort mode to a list of panes (shared across sections).
+  const applySort = useCallback(
+    <T extends { command?: string | null; created_at: string; pane_number?: number }>(list: T[]): T[] => {
+      if (sortMode === "type") {
+        return [...list].sort((a, b) => {
+          const ta = detectAgent(a.command).label;
+          const tb = detectAgent(b.command).label;
+          return ta.localeCompare(tb) || (a.pane_number ?? 0) - (b.pane_number ?? 0);
+        });
+      }
+      if (sortMode === "recent") {
+        return [...list].sort((a, b) => {
+          const da = new Date(a.created_at).getTime() || 0;
+          const db = new Date(b.created_at).getTime() || 0;
+          return db - da || (b.pane_number ?? 0) - (a.pane_number ?? 0);
+        });
+      }
+      return list;
+    },
+    [sortMode],
+  );
+
+  // Split every pane in the workspace into its kind-section, sorted within.
+  const sectionLists = useMemo(() => {
+    const groups: Record<SectionKey, typeof activeSessions> = {
+      terminal: [], browser: [], scratch: [], note: [],
+    };
+    for (const s of activeSessions) groups[sectionForSession(s)].push(s);
+    return {
+      terminal: applySort(groups.terminal),
+      browser: applySort(groups.browser),
+      scratch: applySort(groups.scratch),
+      note: applySort(groups.note),
+    } as Record<SectionKey, typeof activeSessions>;
+  }, [activeSessions, applySort]);
+
+  // Real terminals back the header counts / "needs you" pip (parity w/ old behavior).
+  const terminalTabs = useMemo(
+    () => applySort(activeSessions.filter(isTerminalSession)),
+    [activeSessions, applySort],
+  );
+
+  // Per-section collapse flags — every section starts expanded.
+  const [collapsedSections, setCollapsedSections] = useState<Record<SectionKey, boolean>>({
+    terminal: false, browser: false, scratch: false, note: false,
+  });
+  const toggleSection = useCallback((key: SectionKey) => {
+    setCollapsedSections((prev) => ({ ...prev, [key]: !prev[key] }));
+  }, []);
 
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = [];
@@ -126,6 +178,109 @@ export const TerminalSidebar = memo(function TerminalSidebar({
       setNewSessionDialogOpen(true);
     }
   }, [workspaces, activeWorkspaceId, activeSessions, setNewSessionDialogOpen]);
+
+  // One pane row — shared markup reused by every section.
+  const renderRow = (session: (typeof activeSessions)[number]) => {
+    const isFocused = session.id === focusedSessionId;
+    const isHovered = session.id === hoveredId;
+    const isPulsing = pulsingTabs.has(session.id);
+    const statusColor = STATUS_COLORS[session.status] ?? "var(--status-dead)";
+    const agent = detectAgent(session.command);
+    const displayName = session.manualName
+      ?? session.activityName
+      ?? (session.working_dir.split("/").pop() || session.working_dir);
+
+    return (
+      <div
+        key={session.id}
+        className={isPulsing ? "tab-done-highlight" : undefined}
+        onClick={() => { onFocusSession(session.id); jumpToSession(session.id); }}
+        onDoubleClick={() => { setEditingId(session.id); setEditName(displayName); }}
+        onMouseEnter={() => setHoveredId(session.id)}
+        onMouseLeave={() => setHoveredId(null)}
+        title={`Double-click to rename · ${session.working_dir}`}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 9,
+          padding: "8px 9px 8px 10px",
+          borderRadius: 8,
+          cursor: "pointer",
+          position: "relative",
+          background: isFocused ? "rgba(255,140,0,0.10)" : isHovered ? "var(--bg-secondary)" : "transparent",
+          border: `1px solid ${isFocused ? "rgba(255,140,0,0.45)" : "transparent"}`,
+          // Agent-colored accent rail on the left edge.
+          boxShadow: isFocused ? `inset 3px 0 0 ${agent.color}` : `inset 3px 0 0 ${isHovered ? agent.color + "88" : "transparent"}`,
+          transition: "background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease",
+        }}
+      >
+        {/* Status dot — pulses bright on running→idle */}
+        <span
+          key={isPulsing ? `${session.id}-pulsing` : session.id}
+          className={isPulsing ? "tab-done-dot" : undefined}
+          aria-label={`Status: ${session.status}`}
+          style={{ width: 8, height: 8, borderRadius: "50%", background: statusColor, flexShrink: 0 }}
+        />
+
+        {/* Pane number */}
+        <span className="cg-num" style={{
+          color: "var(--text-accent)", fontWeight: 700, fontSize: 12,
+          minWidth: 14, textAlign: "center", flexShrink: 0,
+        }}>
+          {session.pane_number}
+        </span>
+
+        {/* Name + agent label */}
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
+          {editingId === session.id ? (
+            <input
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              onBlur={() => handleRenameEnd(session.id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleRenameEnd(session.id);
+                if (e.key === "Escape") setEditingId(null);
+              }}
+              onClick={(e) => e.stopPropagation()}
+              autoFocus
+              style={{
+                background: "transparent", border: "none", color: "var(--text-primary)",
+                fontFamily: "var(--font-ui)", fontSize: 12.5, outline: "none", width: "100%", padding: 0,
+              }}
+            />
+          ) : (
+            <span style={{
+              color: isFocused ? "var(--text-primary)" : "var(--text-secondary)",
+              fontSize: 12.5, fontWeight: isFocused ? 600 : 500,
+              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            }}>
+              {displayName}
+            </span>
+          )}
+          <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, color: "var(--text-faint)" }}>
+            <span aria-hidden style={{ color: agent.color }}>{agent.glyph}</span>
+            <span style={{ letterSpacing: 0.5 }}>{agent.label}</span>
+          </span>
+        </div>
+
+        {/* Close button */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onCloseSession(session.id); }}
+          aria-label={`Close terminal ${session.pane_number}`}
+          style={{
+            background: "none", border: "none", color: "var(--text-faint)",
+            cursor: "pointer", fontSize: 15, lineHeight: 1, padding: "0 2px",
+            fontFamily: "var(--font-ui)", flexShrink: 0, minWidth: 16,
+            visibility: isHovered || isFocused ? "visible" : "hidden",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = "var(--status-error)")}
+          onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-faint)")}
+        >
+          {"×"}
+        </button>
+      </div>
+    );
+  };
 
   // Only live in side-panel mode.
   if (placement !== "sidebar") return null;
@@ -278,110 +433,63 @@ export const TerminalSidebar = memo(function TerminalSidebar({
 
         {/* Scrollable list */}
         <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "8px 8px 4px", display: "flex", flexDirection: "column", gap: 4 }}>
-          {count === 0 && (
+          {activeSessions.length === 0 && (
             <div style={{ padding: "28px 12px", textAlign: "center", color: "var(--text-faint)", fontSize: 12, lineHeight: 1.6 }}>
               No terminals in this workspace yet.
             </div>
           )}
 
-          {terminalTabs.map((session) => {
-            const isFocused = session.id === focusedSessionId;
-            const isHovered = session.id === hoveredId;
-            const isPulsing = pulsingTabs.has(session.id);
-            const statusColor = STATUS_COLORS[session.status] ?? "var(--status-dead)";
-            const agent = detectAgent(session.command);
-            const displayName = session.manualName
-              ?? session.activityName
-              ?? (session.working_dir.split("/").pop() || session.working_dir);
-
+          {SECTION_ORDER.map((key) => {
+            const list = sectionLists[key];
+            if (list.length === 0) return null; // render a section only if non-empty
+            const meta = SECTION_META[key];
+            const collapsed = collapsedSections[key];
             return (
-              <div
-                key={session.id}
-                className={isPulsing ? "tab-done-highlight" : undefined}
-                onClick={() => { onFocusSession(session.id); jumpToSession(session.id); }}
-                onDoubleClick={() => { setEditingId(session.id); setEditName(displayName); }}
-                onMouseEnter={() => setHoveredId(session.id)}
-                onMouseLeave={() => setHoveredId(null)}
-                title={`Double-click to rename · ${session.working_dir}`}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 9,
-                  padding: "8px 9px 8px 10px",
-                  borderRadius: 8,
-                  cursor: "pointer",
-                  position: "relative",
-                  background: isFocused ? "rgba(255,140,0,0.10)" : isHovered ? "var(--bg-secondary)" : "transparent",
-                  border: `1px solid ${isFocused ? "rgba(255,140,0,0.45)" : "transparent"}`,
-                  // Agent-colored accent rail on the left edge.
-                  boxShadow: isFocused ? `inset 3px 0 0 ${agent.color}` : `inset 3px 0 0 ${isHovered ? agent.color + "88" : "transparent"}`,
-                  transition: "background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease",
-                }}
-              >
-                {/* Status dot — pulses bright on running→idle */}
-                <span
-                  key={isPulsing ? `${session.id}-pulsing` : session.id}
-                  className={isPulsing ? "tab-done-dot" : undefined}
-                  aria-label={`Status: ${session.status}`}
-                  style={{ width: 8, height: 8, borderRadius: "50%", background: statusColor, flexShrink: 0 }}
-                />
-
-                {/* Pane number */}
-                <span className="cg-num" style={{
-                  color: "var(--text-accent)", fontWeight: 700, fontSize: 12,
-                  minWidth: 14, textAlign: "center", flexShrink: 0,
-                }}>
-                  {session.pane_number}
-                </span>
-
-                {/* Name + agent label */}
-                <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
-                  {editingId === session.id ? (
-                    <input
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      onBlur={() => handleRenameEnd(session.id)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleRenameEnd(session.id);
-                        if (e.key === "Escape") setEditingId(null);
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      autoFocus
-                      style={{
-                        background: "transparent", border: "none", color: "var(--text-primary)",
-                        fontFamily: "var(--font-ui)", fontSize: 12.5, outline: "none", width: "100%", padding: 0,
-                      }}
-                    />
-                  ) : (
-                    <span style={{
-                      color: isFocused ? "var(--text-primary)" : "var(--text-secondary)",
-                      fontSize: 12.5, fontWeight: isFocused ? 600 : 500,
-                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                    }}>
-                      {displayName}
-                    </span>
-                  )}
-                  <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, color: "var(--text-faint)" }}>
-                    <span aria-hidden style={{ color: agent.color }}>{agent.glyph}</span>
-                    <span style={{ letterSpacing: 0.5 }}>{agent.label}</span>
-                  </span>
-                </div>
-
-                {/* Close button */}
+              <div key={key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {/* Section header — label + count badge + collapse chevron */}
                 <button
-                  onClick={(e) => { e.stopPropagation(); onCloseSession(session.id); }}
-                  aria-label={`Close terminal ${session.pane_number}`}
+                  onClick={() => toggleSection(key)}
+                  aria-expanded={!collapsed}
+                  title={collapsed ? `Expand ${meta.label}` : `Collapse ${meta.label}`}
+                  className="cg-focus-ring"
                   style={{
-                    background: "none", border: "none", color: "var(--text-faint)",
-                    cursor: "pointer", fontSize: 15, lineHeight: 1, padding: "0 2px",
-                    fontFamily: "var(--font-ui)", flexShrink: 0, minWidth: 16,
-                    visibility: isHovered || isFocused ? "visible" : "hidden",
+                    display: "flex", alignItems: "center", gap: 7, width: "100%",
+                    background: "transparent", border: "none", cursor: "pointer",
+                    padding: "5px 4px 5px 6px", borderRadius: 6,
+                    fontFamily: "var(--font-ui)", textAlign: "left",
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = "var(--status-error)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-faint)")}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-secondary)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                 >
-                  {"×"}
+                  <span aria-hidden style={{
+                    fontSize: 9, color: "var(--text-muted)", width: 9, flexShrink: 0,
+                    transform: collapsed ? "rotate(-90deg)" : "rotate(0deg)",
+                    transition: "transform 0.15s ease", display: "inline-block",
+                  }}>
+                    {"▾"}
+                  </span>
+                  <span aria-hidden style={{ color: meta.color, fontSize: 11, flexShrink: 0 }}>{meta.glyph}</span>
+                  <span style={{
+                    color: "var(--text-secondary)", fontWeight: 700, fontSize: 10.5,
+                    letterSpacing: 1, textTransform: "uppercase",
+                  }}>
+                    {meta.label}
+                  </span>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, color: "var(--text-muted)",
+                    background: "rgba(255,255,255,0.05)", borderRadius: 5, padding: "1px 6px",
+                    fontVariantNumeric: "tabular-nums",
+                  }}>
+                    {list.length}
+                  </span>
                 </button>
+
+                {/* Section rows */}
+                {!collapsed && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {list.map((session) => renderRow(session))}
+                  </div>
+                )}
               </div>
             );
           })}

@@ -1,5 +1,6 @@
 import { type ReactNode } from "react";
 import { useEntitlementStore } from "../stores/entitlementStore";
+import { useAppStore } from "../stores/appStore";
 import { TIER_NAMES } from "../lib/entitlement";
 import { startPremiumLink } from "../hooks/useEntitlement";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
@@ -15,6 +16,7 @@ export function PremiumPanel() {
   const tier = useEntitlementStore((s) => s.tier);
   const loading = useEntitlementStore((s) => s.loading);
   const clear = useEntitlementStore((s) => s.clear);
+  const openProModal = useAppStore((s) => s.setProModalOpen);
 
   // power is wei; show whole-token power.
   const powerTokens = entitlement
@@ -68,6 +70,7 @@ export function PremiumPanel() {
           {entitlement ? "Re-link / refresh" : "Link wallet"}
         </Btn>
         <Btn onClick={() => openExternal("https://codegrid.app/token/stake")}>Manage stake ↗</Btn>
+        <Btn onClick={() => openProModal(true)}>What&apos;s included →</Btn>
         {entitlement ? (
           <Btn danger onClick={() => clear()}>
             Unlink wallet

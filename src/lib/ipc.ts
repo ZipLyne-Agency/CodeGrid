@@ -243,6 +243,8 @@ export interface SkillInfo {
   name: string;
   description: string;
   category: string;
+  /** "claude" | "codex" | "cursor" | "gemini" | "grok" */
+  agent: string;
 }
 
 export interface ModelInfo {
@@ -340,6 +342,11 @@ export async function rescanProjectRoots(): Promise<RecentProject[]> {
 
 export async function detectClaudeSkills(): Promise<SkillInfo[]> {
   return invoke("detect_claude_skills");
+}
+
+/** Aggregate skills across all supported agents (Claude/Codex/Cursor/Gemini/Grok). */
+export async function detectAllSkills(projectDir?: string): Promise<SkillInfo[]> {
+  return invoke("detect_all_skills", { projectDir: projectDir ?? null });
 }
 
 export async function getAvailableModels(): Promise<ModelInfo[]> {
@@ -454,6 +461,10 @@ export interface McpServerConfig {
   source_file: string;
   type: string; // "stdio" or "http"
   url: string | null;
+  /** "claude" | "codex" | "cursor" | "gemini" | "grok" */
+  agent: string;
+  /** Whether this entry can be edited/removed (JSON agents only; TOML are view-only). */
+  writable: boolean;
 }
 
 export interface McpServerEntry {

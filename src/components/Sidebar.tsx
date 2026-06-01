@@ -1108,10 +1108,11 @@ const SettingsPanel = memo(function SettingsPanel() {
       setMcpManagerOpen(true, focused?.working_dir ?? activeWorkspace?.repo_path ?? undefined);
     }, color: "#d500f9" },
     { label: "SKILLS", onClick: () => setSkillsPanelOpen(true), color: "var(--status-idle)" },
-    { label: "CLAUDE.md", onClick: () => {
+    { label: "AGENTS.md", onClick: () => {
       const dir = activeWorkspace?.repo_path ?? activeSessions[0]?.working_dir;
-      if (dir) setClaudeMdEditorOpen(true, dir);
-      else addToast("No project directory -- open a session first", "warning");
+      // Editor also exposes global scopes, so an open dir is preferred but not required.
+      setClaudeMdEditorOpen(true, dir);
+      if (!dir) addToast("No project open — editing global agent instructions", "info");
     }, color: "var(--status-waiting)" },
     { label: "GITHUB HUB", onClick: () => setHubBrowserOpen(true), color: "var(--status-running)" },
     { label: "GIT SETUP", onClick: () => setGitSetupWizardOpen(true), color: "var(--text-accent)" },
@@ -1156,6 +1157,7 @@ const SIDEBAR_WIDTH = 300;
 
 export const Sidebar = memo(function Sidebar() {
   const { workspaces, activeWorkspaceId, sidebarOpen, activePanel, setActivePanel } = useWorkspaceStore();
+  const toggleSidebar = useWorkspaceStore((s) => s.toggleSidebar);
   const sessions = useSessionStore((s) => s.sessions);
   const [workspaceGitStatus, setWorkspaceGitStatus] = useState<GitStatusInfo | null>(null);
 
@@ -1215,15 +1217,69 @@ export const Sidebar = memo(function Sidebar() {
   const showPanel = sidebarOpen;
 
   return (
-    <div
-      style={{
-        width: showPanel ? `${SIDEBAR_WIDTH}px` : "0px",
-        height: "100%",
-        overflow: "hidden",
-        transition: "width 0.2s ease",
-        flexShrink: 0,
-      }}
-    >
+    <div style={{ position: "relative", height: "100%", flexShrink: 0, display: "flex" }}>
+      {/* Collapsed handle — slim vertical tab on the left edge, mirrors the terminal pop-out. */}
+      <button
+        onClick={() => toggleSidebar()}
+        aria-label="Open sidebar"
+        title="Open sidebar"
+        style={{
+          position: "absolute",
+          top: 14,
+          left: 0,
+          zIndex: 30,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 8,
+          padding: "12px 7px",
+          background: "rgba(20,20,20,0.94)",
+          border: "1px solid var(--border-default)",
+          borderLeft: "none",
+          borderRadius: "0 10px 10px 0",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+          color: "var(--text-secondary)",
+          cursor: "pointer",
+          backdropFilter: "blur(6px)",
+          transform: showPanel ? "translateX(-20px)" : "translateX(0)",
+          opacity: showPanel ? 0 : 1,
+          pointerEvents: showPanel ? "none" : "auto",
+          transition: "transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease",
+          fontFamily: "var(--font-ui)",
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-accent)"; e.currentTarget.style.borderColor = "var(--text-accent)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-secondary)"; e.currentTarget.style.borderColor = "var(--border-default)"; }}
+      >
+        <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>{"»"}</span>
+        <span style={{
+          writingMode: "vertical-rl",
+          textOrientation: "mixed",
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: 1.5,
+        }}>
+          EXPLORER
+        </span>
+        {totalChanges > 0 && (
+          <span style={{
+            fontSize: 10, fontWeight: 800, lineHeight: 1,
+            color: "var(--text-accent)", background: "rgba(255,140,0,0.16)",
+            borderRadius: 6, padding: "3px 5px", fontVariantNumeric: "tabular-nums",
+          }}>
+            {totalChanges > 99 ? "99+" : totalChanges}
+          </span>
+        )}
+      </button>
+
+      <div
+        style={{
+          width: showPanel ? `${SIDEBAR_WIDTH}px` : "0px",
+          height: "100%",
+          overflow: "hidden",
+          transition: "width 0.2s ease",
+          flexShrink: 0,
+        }}
+      >
       <div
         style={{
           width: SIDEBAR_WIDTH,
@@ -1294,6 +1350,29 @@ export const Sidebar = memo(function Sidebar() {
               </button>
             );
           })}
+          {/* Collapse the whole sidebar (re-open via the edge handle or the top-bar « button). */}
+          <button
+            onClick={() => toggleSidebar()}
+            title="Collapse sidebar"
+            aria-label="Collapse sidebar"
+            style={{
+              flex: "0 0 26px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "transparent",
+              border: "none",
+              borderLeft: "1px solid var(--border-default)",
+              color: "var(--text-faint)",
+              cursor: "pointer",
+              fontSize: 14,
+              transition: "color 0.12s ease",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-accent)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-faint)"; }}
+          >
+            «
+          </button>
         </div>
 
         {/* Active workspace context line */}
@@ -1332,6 +1411,7 @@ export const Sidebar = memo(function Sidebar() {
           {panel === "analytics" && <AnalyticsPanel />}
           {panel === "settings" && <SettingsPanel />}
         </div>
+      </div>
       </div>
     </div>
   );

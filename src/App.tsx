@@ -23,6 +23,7 @@ const GitSetupWizard    = lazy(() => import("./components/GitSetupWizard").then(
 const CodeViewer        = lazy(() => import("./components/CodeViewer").then(m => ({ default: m.CodeViewer })));
 const DependencyGraph   = lazy(() => import("./components/DependencyGraph").then(m => ({ default: m.DependencyGraph })));
 const ReviewPanel       = lazy(() => import("./components/ReviewPanel").then(m => ({ default: m.ReviewPanel })));
+const ProFeaturesModal  = lazy(() => import("./components/ProFeaturesModal").then(m => ({ default: m.ProFeaturesModal })));
 const Onboarding        = lazy(() => import("./components/Onboarding").then(m => ({ default: m.Onboarding })));
 const ResourceWarningDialog = lazy(() => import("./components/ResourceWarningDialog").then(m => ({ default: m.ResourceWarningDialog })));
 import { useSessionStore } from "./stores/sessionStore";
@@ -49,7 +50,7 @@ import {
   removeRecentProject,
   pinRecentProject,
   rescanProjectRoots,
-  detectClaudeSkills,
+  detectAllSkills,
   getAvailableModels,
   checkGitSetup,
   getSetting,
@@ -293,8 +294,8 @@ export default function App() {
         setActiveWorkspace(mockWs.id);
       }
 
-      // Load skills
-      try { const skills = await detectClaudeSkills(); setSkills(skills); } catch (e) { console.warn("Failed to load skills:", e); }
+      // Load skills (all agents)
+      try { const skills = await detectAllSkills(); setSkills(skills); } catch (e) { console.warn("Failed to load skills:", e); }
 
       // Load models
       try { const models = await getAvailableModels(); setModels(models); } catch (e) { console.warn("Failed to load models:", e); }
@@ -1195,6 +1196,7 @@ export default function App() {
         <GitManager />
         <McpManager />
         <ClaudeMdEditor />
+        <ProFeaturesModal />
         <GitSetupWizard />
         <CodeViewer />
         <DependencyGraph />

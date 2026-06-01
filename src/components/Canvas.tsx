@@ -118,9 +118,15 @@ export const Canvas = memo(function Canvas({ width, height, onCloseSession }: Ca
   }, [canvas.zoom, canvas.panX, canvas.panY, canvas.locked]);
 
   const dragOverlayRef = useRef<HTMLDivElement>(null);
+  // Full-canvas overlay that captures pointer events while the Space "hand tool"
+  // is held, so a drag pans the whole canvas instead of clicking into a pane.
+  const panOverlayRef = useRef<HTMLDivElement>(null);
   const hasMinimized = Object.keys(minimizedPanes).length > 0;
   const canvasHeight = height;
   const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
+  // Space-held "hand tool" mode — drives the grab/grabbing cursor + pan overlay.
+  // Mirrored into live.current.spaceHeld for the no-render gesture fast path.
+  const [panMode, setPanMode] = useState(false);
 
   const minimizedSessions = useMemo(() => {
     const minIds = new Set(Object.keys(minimizedPanes));
@@ -337,17 +343,29 @@ export const Canvas = memo(function Canvas({ width, height, onCloseSession }: Ca
         return;
       }
       e.preventDefault();
+      // Don't hijack into the hand tool while maximized or mid-gesture (drag/resize).
+      if (maximizedPane || (live.current.mode !== "idle" && live.current.mode !== "pan")) return;
       live.current.spaceHeld = true;
+      setPanMode(true);
     };
     const up = (e: KeyboardEvent) => {
       if (e.code === "Space") {
         live.current.spaceHeld = false;
+        setPanMode(false);
       }
     };
+    // Releasing focus (e.g. tab/window blur) must also exit the hand tool so the
+    // cursor/overlay don't get stuck if the keyup never fires.
+    const blur = () => { live.current.spaceHeld = false; setPanMode(false); };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
-    return () => { window.removeEventListener("keydown", down); window.removeEventListener("keyup", up); };
-  }, []);
+    window.addEventListener("blur", blur);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", blur);
+    };
+  }, [maximizedPane]);
 
   // ── External zoom-to-pane command (from top terminal tabs) ──
   useEffect(() => {
@@ -719,6 +737,30 @@ export const Canvas = memo(function Canvas({ width, height, onCloseSession }: Ca
             cursor: "move",
           }}
         />
+
+        {/* Hand-tool overlay — only present while Space is held. Sits above panes
+            and the bottom bar so a drag anywhere pans the whole canvas instead of
+            clicking into a terminal. Uses the same pan machinery as the viewport. */}
+        {panMode && !maximizedPane && (
+          <div
+            ref={panOverlayRef}
+            data-pan-overlay
+            onMouseDown={(e) => {
+              // grab → grabbing for the duration of the drag.
+              if (panOverlayRef.current) panOverlayRef.current.style.cursor = "grabbing";
+              handleCanvasMouseDown(e);
+            }}
+            onMouseUp={() => {
+              if (panOverlayRef.current) panOverlayRef.current.style.cursor = "grab";
+            }}
+            style={{
+              position: "absolute",
+              inset: 0,
+              zIndex: 950,
+              cursor: "grab",
+            }}
+          />
+        )}
 
         {/* Dot grid background */}
         <div
