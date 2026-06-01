@@ -4,6 +4,7 @@ import { TerminalView } from "./Terminal";
 import { useSessionStore, type SessionWithModel } from "../stores/sessionStore";
 import { useToastStore } from "../stores/toastStore";
 import { agentTheme, type AgentKind } from "../lib/paneTheme";
+import { UI_ICON } from "../lib/icons";
 import {
   createSession,
   spawnShellSession,
@@ -155,7 +156,7 @@ export const ScratchPane = memo(function ScratchPane({ session, onClose, onDragS
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-          <span aria-hidden style={{ color: "#ff8c00", fontSize: 13 }}>⌁</span>
+          <UI_ICON.scratch size={14} weight={isFocused ? "fill" : "regular"} color="#ff8c00" style={{ flexShrink: 0 }} />
           <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>
             {session.manualName ?? "Scratch"}
           </span>
@@ -179,7 +180,7 @@ export const ScratchPane = memo(function ScratchPane({ session, onClose, onDragS
           onMouseEnter={(e) => (e.currentTarget.style.color = "var(--status-error)")}
           onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
         >
-          ×
+          <UI_ICON.close size={14} />
         </button>
       </div>
 
@@ -225,7 +226,7 @@ export const ScratchPane = memo(function ScratchPane({ session, onClose, onDragS
                 whiteSpace: "nowrap",
               }}
             >
-              <span aria-hidden style={{ fontSize: 12, color: theme.color }}>{theme.glyph}</span>
+              {(() => { const Glyph = theme.icon; return <Glyph size={14} weight={isActive ? "fill" : "regular"} color={theme.color} style={{ flexShrink: 0 }} />; })()}
               {theme.label}
               {t?.status === "creating" && <span style={{ color: "var(--text-faint)", fontSize: 10 }}>…</span>}
             </button>

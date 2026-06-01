@@ -135,7 +135,7 @@ export const PaneSwitcher = memo(function PaneSwitcher() {
                   <span style={{
                     fontSize: 12, fontWeight: 800, color: agent.color, minWidth: 16, textAlign: "center",
                   }}>{s.pane_number}</span>
-                  <span aria-hidden style={{ color: agent.color, fontSize: 13, flexShrink: 0 }}>{agent.glyph}</span>
+                  {(() => { const Glyph = agent.icon; return <Glyph size={14} weight={active ? "fill" : "regular"} color={agent.color} style={{ flexShrink: 0 }} />; })()}
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{
                       color: active ? "#e0e0e0" : "#aaaaaa", fontSize: 12, fontWeight: 600,

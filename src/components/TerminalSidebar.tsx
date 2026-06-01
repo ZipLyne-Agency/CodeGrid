@@ -3,6 +3,7 @@ import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useSessionStore } from "../stores/sessionStore";
 import { jumpToSession } from "../lib/jumpToSession";
 import { detectAgent } from "../lib/paneTheme";
+import { UI_ICON, type Icon } from "../lib/icons";
 import { renameSession as renameSessionIpc } from "../lib/ipc";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -21,11 +22,11 @@ function isTerminalSession(s: { kind?: string }): boolean {
 /** The collapsible groups the drawer splits panes into, keyed by pane kind. */
 type SectionKey = "terminal" | "browser" | "scratch" | "note";
 
-const SECTION_META: Record<SectionKey, { label: string; glyph: string; color: string }> = {
-  terminal: { label: "Terminals", glyph: "▤", color: "var(--text-accent)" },
-  browser: { label: "Preview browsers", glyph: "◧", color: "var(--agent-browser)" },
-  scratch: { label: "Scratch", glyph: "⌁", color: "#ff8c00" },
-  note: { label: "Notes", glyph: "✎", color: "var(--agent-note)" },
+const SECTION_META: Record<SectionKey, { label: string; icon: Icon; color: string }> = {
+  terminal: { label: "Terminals", icon: UI_ICON.terminals, color: "var(--text-accent)" },
+  browser: { label: "Preview browsers", icon: UI_ICON.preview, color: "var(--agent-browser)" },
+  scratch: { label: "Scratch", icon: UI_ICON.scratch, color: "#ff8c00" },
+  note: { label: "Notes", icon: UI_ICON.note, color: "var(--agent-note)" },
 };
 
 // Section render order (terminals first).
@@ -258,7 +259,7 @@ export const TerminalSidebar = memo(function TerminalSidebar({
             </span>
           )}
           <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, color: "var(--text-faint)" }}>
-            <span aria-hidden style={{ color: agent.color }}>{agent.glyph}</span>
+            {(() => { const Glyph = agent.icon; return <Glyph size={13} weight={isFocused ? "fill" : "regular"} color={agent.color} style={{ flexShrink: 0 }} />; })()}
             <span style={{ letterSpacing: 0.5 }}>{agent.label}</span>
           </span>
         </div>
@@ -276,7 +277,7 @@ export const TerminalSidebar = memo(function TerminalSidebar({
           onMouseEnter={(e) => (e.currentTarget.style.color = "var(--status-error)")}
           onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-faint)")}
         >
-          {"×"}
+          <UI_ICON.close size={14} />
         </button>
       </div>
     );
@@ -324,7 +325,7 @@ export const TerminalSidebar = memo(function TerminalSidebar({
         onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-accent)"; e.currentTarget.style.borderColor = "var(--text-accent)"; }}
         onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-secondary)"; e.currentTarget.style.borderColor = "var(--border-default)"; }}
       >
-        <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>{"▤"}</span>
+        <UI_ICON.terminals size={14} style={{ flexShrink: 0 }} />
         <span style={{
           writingMode: "vertical-rl",
           textOrientation: "mixed",
@@ -407,11 +408,12 @@ export const TerminalSidebar = memo(function TerminalSidebar({
                 background: "transparent", border: "1px solid var(--border-default)",
                 color: "var(--text-muted)", fontSize: 10, fontFamily: "var(--font-ui)",
                 cursor: "pointer", padding: "3px 7px", borderRadius: 6, whiteSpace: "nowrap",
+                display: "inline-flex", alignItems: "center", gap: 4,
               }}
               onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-accent)"; e.currentTarget.style.borderColor = "var(--text-accent)"; }}
               onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; e.currentTarget.style.borderColor = "var(--border-default)"; }}
             >
-              {"⇅"} {SORT_LABEL[sortMode]}
+              <UI_ICON.sort size={13} style={{ flexShrink: 0 }} /> {SORT_LABEL[sortMode]}
             </button>
           )}
           <button
@@ -462,13 +464,13 @@ export const TerminalSidebar = memo(function TerminalSidebar({
                   onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                 >
                   <span aria-hidden style={{
-                    fontSize: 9, color: "var(--text-muted)", width: 9, flexShrink: 0,
+                    color: "var(--text-muted)", flexShrink: 0,
                     transform: collapsed ? "rotate(-90deg)" : "rotate(0deg)",
-                    transition: "transform 0.15s ease", display: "inline-block",
+                    transition: "transform 0.15s ease", display: "inline-flex",
                   }}>
-                    {"▾"}
+                    <UI_ICON.caretDown size={12} />
                   </span>
-                  <span aria-hidden style={{ color: meta.color, fontSize: 11, flexShrink: 0 }}>{meta.glyph}</span>
+                  {(() => { const Glyph = meta.icon; return <Glyph size={15} color={meta.color} style={{ flexShrink: 0 }} />; })()}
                   <span style={{
                     color: "var(--text-secondary)", fontWeight: 700, fontSize: 10.5,
                     letterSpacing: 1, textTransform: "uppercase",
@@ -510,7 +512,7 @@ export const TerminalSidebar = memo(function TerminalSidebar({
             onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-accent)"; e.currentTarget.style.borderColor = "var(--text-accent)"; e.currentTarget.style.background = "rgba(255,140,0,0.06)"; }}
             onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-secondary)"; e.currentTarget.style.borderColor = "var(--border-strong)"; e.currentTarget.style.background = "transparent"; }}
           >
-            <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>+</span> New terminal
+            <UI_ICON.plus size={14} style={{ flexShrink: 0 }} /> New terminal
           </button>
         </div>
       </div>

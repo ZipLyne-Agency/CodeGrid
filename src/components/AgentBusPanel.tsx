@@ -3,6 +3,7 @@ import { useSessionStore } from "../stores/sessionStore";
 import { useToastStore } from "../stores/toastStore";
 import { setupAgentBus } from "../lib/ipc";
 import { detectAgent, statusTheme } from "../lib/paneTheme";
+import { UI_ICON } from "../lib/icons";
 import { jumpToSession } from "../lib/jumpToSession";
 
 const MONO = "var(--font-code)";
@@ -37,6 +38,10 @@ export const AgentBusPanel = memo(function AgentBusPanel() {
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflowY: "auto", fontFamily: "var(--font-ui)" }}>
       {/* Intro */}
       <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border-default)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8, color: "var(--text-accent)" }}>
+          <UI_ICON.bus size={16} weight="fill" style={{ flexShrink: 0 }} />
+          <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.04em" }}>AGENT BUS</span>
+        </div>
         <div style={{ color: "var(--text-secondary)", fontSize: 12, lineHeight: 1.5 }}>
           The <strong style={{ color: "var(--text-primary)" }}>Agent Bus</strong> lets the agents
           running in your panes talk to each other — natively, over CodeGrid's local socket, with no tmux.
@@ -107,7 +112,7 @@ export const AgentBusPanel = memo(function AgentBusPanel() {
                 onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
                 onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
               >
-                <span aria-hidden style={{ color: agent.color, flexShrink: 0 }}>{agent.glyph}</span>
+                {(() => { const Glyph = agent.icon; return <Glyph size={14} weight="fill" color={agent.color} style={{ flexShrink: 0 }} />; })()}
                 <span style={{ color: "var(--text-accent)", fontWeight: 700, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{a.pane_number}</span>
                 <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 3, color: status.color, fontSize: 11, flexShrink: 0 }}>

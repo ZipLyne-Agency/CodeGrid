@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLayoutStore } from "../stores/layoutStore";
 import { useSessionStore } from "../stores/sessionStore";
+import { UI_ICON } from "../lib/icons";
 
 interface BrowserPaneProps {
   sessionId: string;
@@ -345,7 +346,7 @@ export const BrowserPane = memo(function BrowserPane({
             onMouseEnter={(e) => (e.currentTarget.style.color = "#ff3d00")}
             onMouseLeave={(e) => (e.currentTarget.style.color = "#888")}
           >
-            ×
+            <UI_ICON.close size={14} />
           </button>
         </div>
 
@@ -540,7 +541,8 @@ const StartScreen = memo(function StartScreen({ onPick, onFocusUrlBar }: StartSc
         textAlign: "center",
       }}
     >
-      <div style={{ fontSize: 34, color: "#4a9eff", fontWeight: 700, letterSpacing: "1px" }}>◧</div>
+      <UI_ICON.preview size={34} weight="regular" color="#4a9eff" />
+
       <div style={{ color: "#e0e0e0", fontSize: 13, fontWeight: 600 }}>
         Localhost preview
       </div>

@@ -5,6 +5,7 @@ import { useSessionStore } from "../stores/sessionStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import type { SessionWithModel } from "../stores/sessionStore";
 import { detectAgent, statusTheme, hexToRgb } from "../lib/paneTheme";
+import { UI_ICON } from "../lib/icons";
 
 const UI_FONT = "var(--font-ui)";
 
@@ -267,9 +268,9 @@ export const Pane = memo(function Pane({ session, onClose, onDragStart }: PanePr
           >
             {session.pane_number}
           </span>
-          {/* Agent glyph + label — glyph carries identity for non-color readers */}
+          {/* Agent icon + label — icon carries identity for non-color readers */}
           <span style={{ display: "inline-flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
-            <span aria-hidden style={{ fontSize: 14, lineHeight: 1, color: hc.glyph }}>{agent.glyph}</span>
+            {(() => { const Glyph = agent.icon; return <Glyph size={14} weight={isFocused ? "fill" : "regular"} color={hc.glyph} style={{ flexShrink: 0 }} />; })()}
             <span style={{ fontSize: 13, fontWeight: 700, color: hc.label, letterSpacing: 0.1 }}>{agent.label}</span>
           </span>
           {/* Status — glyph + word, not color-alone */}
@@ -322,7 +323,7 @@ export const Pane = memo(function Pane({ session, onClose, onDragStart }: PanePr
                 flexShrink: 0, overflow: "hidden", maxWidth: 130,
               }}
             >
-              <span aria-hidden>{session.worktree_path ? "⌥" : "⎇"}</span>
+              <span aria-hidden style={{ display: "inline-flex", alignItems: "center" }}>{session.worktree_path ? <UI_ICON.worktree size={11} /> : <UI_ICON.git size={11} />}</span>
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {session.git_branch}
               </span>
@@ -331,14 +332,14 @@ export const Pane = memo(function Pane({ session, onClose, onDragStart }: PanePr
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
           <HeaderBtn label="Name this terminal with AI (Pro)" onClick={handleAiName} onDark={!isFocused}>
-            {naming ? "·" : "✨"}
+            {naming ? "·" : <UI_ICON.ai size={13} weight="fill" />}
           </HeaderBtn>
-          <HeaderBtn label="Minimize pane" onClick={handleMinimize} onDark={!isFocused}>−</HeaderBtn>
+          <HeaderBtn label="Minimize pane" onClick={handleMinimize} onDark={!isFocused}><UI_ICON.minimize size={14} /></HeaderBtn>
           <HeaderBtn label={isMaximized ? "Restore pane" : "Maximize pane"} onClick={(e) => { e.stopPropagation(); toggleMaximize(session.id); }} onDark={!isFocused}>
-            {isMaximized ? "⊡" : "⊞"}
+            {isMaximized ? <UI_ICON.restore size={13} /> : <UI_ICON.maximize size={13} />}
           </HeaderBtn>
           <HeaderBtn label={`Close pane ${session.pane_number} (Cmd+W)`} onClick={handleClose} danger onDark={!isFocused}>
-            ×
+            <UI_ICON.close size={14} />
           </HeaderBtn>
         </div>
       </div>

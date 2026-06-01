@@ -1,5 +1,6 @@
 import { memo, useState, useCallback, useEffect, useRef } from "react";
 import { useAppStore } from "../stores/appStore";
+import { UI_ICON } from "../lib/icons";
 import {
   gitStatus, gitPush, gitPull, gitCommit, gitStageFile, gitUnstageFile,
   gitCreateBranch, gitSwitchBranch, gitListBranches, gitLog, gitDiscardFile,
@@ -723,12 +724,13 @@ export const GitManager = memo(function GitManager() {
                     disabled={aiNaming || !dir}
                     title="Write a commit message with AI (Pro)"
                     style={{
-                      background: "rgba(255,140,0,0.10)", border: "1px solid var(--text-accent)",
+                      display: "inline-flex", alignItems: "center", gap: 4,
+                      background: "var(--accent-soft)", border: "1px solid var(--text-accent)",
                       color: "var(--text-accent)", fontSize: "10px", fontFamily: MONO_FONT,
                       cursor: aiNaming || !dir ? "default" : "pointer", padding: "2px 8px", fontWeight: "bold",
                     }}
                   >
-                    {aiNaming ? "✨ …" : "✨ AI"}
+                    <UI_ICON.ai size={12} weight="fill" style={{ flexShrink: 0 }} /> {aiNaming ? "…" : "AI"}
                   </button>
                   {/* Stage All checkbox */}
                   <label

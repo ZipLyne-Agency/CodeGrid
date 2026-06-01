@@ -6,6 +6,7 @@ import {
   getHomeDir, type McpServerConfig,
 } from "../lib/ipc";
 import { agentTheme, type AgentKind } from "../lib/paneTheme";
+import { UI_ICON } from "../lib/icons";
 
 // Display order for the per-agent groups.
 const AGENT_ORDER: AgentKind[] = ["claude", "codex", "cursor", "gemini", "grok"];
@@ -577,7 +578,7 @@ export const McpManager = memo(function McpManager() {
                   color: active ? th.color : "var(--text-muted)", fontSize: "10px",
                   fontFamily: "var(--font-ui)", cursor: "pointer", padding: "3px 9px", fontWeight: "bold",
                 }}>
-                  <span style={{ color: th.color }}>{th.glyph}</span>
+                  {(() => { const Glyph = th.icon; return <Glyph size={14} weight={active ? "fill" : "regular"} color={th.color} style={{ flexShrink: 0 }} />; })()}
                   {th.label} ({agentCounts[a]})
                 </button>
               );
@@ -604,7 +605,7 @@ export const McpManager = memo(function McpManager() {
                     background: "var(--bg-tertiary)", borderBottom: "1px solid var(--border-default)",
                     position: "sticky", top: 0, zIndex: 1,
                   }}>
-                    <span style={{ color: th.color, fontSize: "12px" }}>{th.glyph}</span>
+                    {(() => { const Glyph = th.icon; return <Glyph size={14} weight="fill" color={th.color} style={{ flexShrink: 0 }} />; })()}
                     <span style={{ color: th.color, fontSize: "10px", fontWeight: "bold", letterSpacing: "1px" }}>{th.label.toUpperCase()}</span>
                     <span style={{ color: "var(--text-faint)", fontSize: "10px" }}>{list.length} server{list.length !== 1 ? "s" : ""}</span>
                     {!list[0].writable && (
@@ -639,8 +640,8 @@ export const McpManager = memo(function McpManager() {
                         </button>
                       ) : (
                         <span title="View-only — this agent stores MCP servers in a TOML config" style={{
-                          width: "28px", textAlign: "center", color: "var(--text-faint)", fontSize: "11px", flexShrink: 0,
-                        }}>🔒</span>
+                          width: "28px", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "var(--text-faint)", flexShrink: 0,
+                        }}><UI_ICON.lock size={13} weight="regular" /></span>
                       )}
 
                       {/* Info */}

@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useSessionStore } from "../stores/sessionStore";
+import { UI_ICON, type Icon } from "../lib/icons";
 import { TerminalManager } from "./TerminalManager";
 
 const UI_FONT = "var(--font-ui)";
@@ -66,8 +67,8 @@ export const CanvasControls = memo(function CanvasControls() {
           fontFamily: UI_FONT,
         }}
       >
-        <IconBtn glyph="▤" title="Manage all terminals" onClick={() => setTmOpen(true)} />
-        <IconBtn glyph="⌘" title="Command Palette (Cmd+K)" onClick={() => setCommandPaletteOpen(true)} />
+        <IconBtn icon={UI_ICON.manageTerminals} title="Manage all terminals" onClick={() => setTmOpen(true)} />
+        <IconBtn icon={UI_ICON.command} title="Command Palette (Cmd+K)" onClick={() => setCommandPaletteOpen(true)} />
         <button
           ref={newBtnRef}
           data-new-btn
@@ -78,13 +79,14 @@ export const CanvasControls = memo(function CanvasControls() {
           }}
           title="New… (Cmd+N)"
           style={{
-            display: "inline-flex", alignItems: "center", gap: 5,
-            background: "#ff8c00", border: "1px solid #ff8c00", color: "#0a0a0a",
+            display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5,
+            height: "var(--ctl-h)", boxSizing: "border-box",
+            background: "var(--accent)", border: "1px solid var(--accent)", color: "#0a0a0a",
             fontSize: 12, fontFamily: UI_FONT, cursor: "pointer",
-            padding: "5px 12px", fontWeight: "bold", borderRadius: 6,
+            padding: "0 12px", fontWeight: 700, borderRadius: 6,
           }}
         >
-          + New <span style={{ fontSize: 9 }}>▾</span>
+          + New <UI_ICON.caretDown size={11} weight="regular" style={{ flexShrink: 0 }} />
         </button>
       </div>
 
@@ -97,38 +99,48 @@ export const CanvasControls = memo(function CanvasControls() {
             borderRadius: 8, boxShadow: "0 12px 32px rgba(0,0,0,0.6)", zIndex: 100000, padding: 6,
           }}
         >
-          <div style={{ padding: "4px 10px 6px", fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--text-faint)", fontFamily: UI_FONT }}>
-            Add to canvas
-          </div>
-          {[
-            { glyph: "◆", color: "#ff8c00", label: "New agent session", hint: "pick agent", desc: "Start a coding agent — Claude, Codex, Gemini, Cursor or Grok — in a project folder.", run: () => setNewSessionDialogOpen(true) },
-            { glyph: "⧉", color: "#ff8c00", label: "Same agent here", hint: "duplicate", desc: "Open a second pane of the focused agent on the same project folder.", run: handleSameAgent },
-            { glyph: "⌁", color: "#ff8c00", label: "Scratch terminal", hint: "⇧⌘J", desc: "A throwaway shell for quick commands — not tied to any project or agent.", run: () => window.dispatchEvent(new CustomEvent("codegrid:new-scratch-pane", { detail: {} })) },
-            { glyph: "◧", color: "#4a9eff", label: "Preview pane", hint: "localhost", desc: "A live in-app browser for your dev server — preview your app beside the code.", run: () => window.dispatchEvent(new CustomEvent("codegrid:new-browser-pane", { detail: { url: "", focusUrl: true } })) },
-            { glyph: "✎", color: "#ffab00", label: "Note", hint: "markdown", desc: "A markdown scratchpad pinned to the canvas — plans, to-dos, snippets.", run: () => window.dispatchEvent(new CustomEvent("codegrid:new-note-pane", { detail: {} })) },
-          ].map((item) => (
-            <button
-              key={item.label}
-              onClick={() => { setNewMenuOpen(false); item.run(); }}
-              style={{
-                display: "flex", alignItems: "flex-start", gap: 11, width: "100%",
-                background: "transparent", border: "none", cursor: "pointer",
-                padding: "9px 10px", borderRadius: 6, textAlign: "left",
-                color: "var(--text-primary)", fontFamily: UI_FONT,
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-            >
-              <span aria-hidden style={{ color: item.color, width: 16, textAlign: "center", flexShrink: 0, fontSize: 13, lineHeight: "16px", marginTop: 1 }}>{item.glyph}</span>
-              <span style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                  <span style={{ fontSize: 12.5, fontWeight: 600 }}>{item.label}</span>
-                  {item.hint && <span style={{ color: "var(--text-faint)", fontSize: 10, marginLeft: "auto", flexShrink: 0 }}>{item.hint}</span>}
+          {(() => {
+            const renderItem = (item: { icon: Icon; color: string; label: string; hint?: string; desc: string; run: () => void }) => (
+              <button
+                key={item.label}
+                onClick={() => { setNewMenuOpen(false); item.run(); }}
+                style={{
+                  display: "flex", alignItems: "flex-start", gap: 11, width: "100%",
+                  background: "transparent", border: "none", cursor: "pointer",
+                  padding: "9px 10px", borderRadius: 6, textAlign: "left",
+                  color: "var(--text-primary)", fontFamily: UI_FONT,
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              >
+                <span aria-hidden style={{ color: item.color, width: 16, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}><item.icon size={15} weight="regular" /></span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                    <span style={{ fontSize: 12.5, fontWeight: 600 }}>{item.label}</span>
+                    {item.hint && <span style={{ color: "var(--text-faint)", fontSize: 10, marginLeft: "auto", flexShrink: 0 }}>{item.hint}</span>}
+                  </span>
+                  <span style={{ display: "block", color: "var(--text-secondary)", fontSize: 11, lineHeight: 1.45, marginTop: 2 }}>{item.desc}</span>
                 </span>
-                <span style={{ display: "block", color: "var(--text-secondary)", fontSize: 11, lineHeight: 1.45, marginTop: 2 }}>{item.desc}</span>
-              </span>
-            </button>
-          ))}
+              </button>
+            );
+            const sectionLabel = (text: string) => (
+              <div style={{ padding: "4px 10px 6px", fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--text-faint)", fontFamily: UI_FONT }}>{text}</div>
+            );
+            return (
+              <>
+                {sectionLabel("Current agent")}
+                {renderItem({ icon: UI_ICON.sameAgent, color: "var(--accent)", label: "Same agent here", hint: "duplicate", desc: "Open a second pane of the focused agent on the same project folder.", run: handleSameAgent })}
+                <div style={{ height: 1, background: "var(--border-default)", margin: "6px 8px" }} />
+                {sectionLabel("Add to canvas")}
+                {[
+                  { icon: UI_ICON.newAgent, color: "var(--accent)", label: "New agent session", hint: "pick agent", desc: "Start a coding agent — Claude, Codex, Gemini, Cursor or Grok — in a project folder.", run: () => setNewSessionDialogOpen(true) },
+                  { icon: UI_ICON.scratch, color: "var(--agent-shell)", label: "Scratch terminal", hint: "⇧⌘J", desc: "A throwaway shell for quick commands — not tied to any project or agent.", run: () => window.dispatchEvent(new CustomEvent("codegrid:new-scratch-pane", { detail: {} })) },
+                  { icon: UI_ICON.preview, color: "var(--agent-browser)", label: "Preview pane", hint: "localhost", desc: "A live in-app browser for your dev server — preview your app beside the code.", run: () => window.dispatchEvent(new CustomEvent("codegrid:new-browser-pane", { detail: { url: "", focusUrl: true } })) },
+                  { icon: UI_ICON.note, color: "var(--agent-note)", label: "Note", hint: "markdown", desc: "A markdown scratchpad pinned to the canvas — plans, to-dos, snippets.", run: () => window.dispatchEvent(new CustomEvent("codegrid:new-note-pane", { detail: {} })) },
+                ].map(renderItem)}
+              </>
+            );
+          })()}
         </div>,
         document.body,
       )}
@@ -139,7 +151,7 @@ export const CanvasControls = memo(function CanvasControls() {
 });
 
 /** Compact icon-only control button. */
-function IconBtn({ glyph, title, onClick }: { glyph: string; title: string; onClick: () => void }) {
+function IconBtn({ icon: Glyph, title, onClick }: { icon: Icon; title: string; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
@@ -148,14 +160,14 @@ function IconBtn({ glyph, title, onClick }: { glyph: string; title: string; onCl
       className="cg-focus-ring"
       style={{
         display: "inline-flex", alignItems: "center", justifyContent: "center",
-        width: 28, height: 28, minWidth: 28,
-        background: "transparent", border: "1px solid #2a2a2a", borderRadius: 6,
-        color: "#888", fontSize: 14, cursor: "pointer", fontFamily: UI_FONT,
+        width: "var(--ctl-h)", height: "var(--ctl-h)", minWidth: "var(--ctl-h)", boxSizing: "border-box",
+        background: "transparent", border: "1px solid var(--border-default)", borderRadius: 6,
+        color: "var(--text-muted)", fontSize: 14, cursor: "pointer", fontFamily: UI_FONT,
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.color = "#ff8c00"; e.currentTarget.style.borderColor = "#ff8c00"; }}
-      onMouseLeave={(e) => { e.currentTarget.style.color = "#888"; e.currentTarget.style.borderColor = "#2a2a2a"; }}
+      onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent)"; e.currentTarget.style.borderColor = "var(--accent)"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; e.currentTarget.style.borderColor = "var(--border-default)"; }}
     >
-      {glyph}
+      <Glyph size={15} weight="regular" style={{ flexShrink: 0 }} />
     </button>
   );
 }

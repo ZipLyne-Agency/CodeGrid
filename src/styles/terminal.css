@@ -23,26 +23,37 @@
   --border-strong:  #3a3a3a;
   --border-focus: #ff8c00;
 
-  /* ── Status (text-safe; pair with a glyph) ────────────── */
-  --status-idle:    #5fa8ff;   /* lighter blue, 6.4:1 on #0a */
-  --status-running: #2ddc7c;   /* mint, 7.4:1 */
-  --status-waiting: #ffc233;   /* amber, 11.5:1 */
-  --status-error:   #ff6b4a;   /* warmer red, 6.3:1 */
-  --status-dead:    #7a7a7a;
+  /* ── Status (text-safe; pair with a glyph) ────────────────
+     Muted toward a Linear-style calm — softer, less neon, but still
+     AA-legible on bg-primary. Reserve saturation for the brand accent. */
+  --status-idle:    #6f9bcc;   /* calmer blue */
+  --status-running: #5cb185;   /* softer green, not mint-neon */
+  --status-waiting: #d6a94e;   /* muted amber */
+  --status-error:   #d97a63;   /* desaturated terracotta-red */
+  --status-dead:    #6e6e6e;
 
-  /* ── Agent colors (each pairs with a glyph) ───────────── */
+  /* ── Agent colors (each pairs with a glyph) ───────────────
+     Brand orange stays vivid for Claude; the rest are toned to match
+     the calmer status palette so the canvas reads quiet, not poppy. */
   --agent-claude:  #ff8c00;
-  --agent-codex:   #2ddc7c;
-  --agent-gemini:  #5fa8ff;
-  --agent-cursor:  #b87cf7;
-  --agent-grok:    #e6e6e6;
-  --agent-shell:   #5fa8ff;
-  --agent-browser: #5fa8ff;
-  --agent-note:    #ffc233;
+  --agent-codex:   #5cb185;
+  --agent-gemini:  #6f9bcc;
+  --agent-cursor:  #a98bd6;
+  --agent-grok:    #cfcfcf;
+  --agent-shell:   #6f9bcc;
+  --agent-browser: #6f9bcc;
+  --agent-note:    #d6a94e;
+
+  /* ── Accent helpers (use these instead of ad-hoc rgba) ──── */
+  --accent: #ff8c00;
+  --accent-soft:   rgba(255,140,0,0.12);  /* active/selected tint */
+  --accent-border: rgba(255,140,0,0.42);  /* active/selected border */
 
   /* ── Type ─────────────────────────────────────────────── */
-  --font-ui:   "Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont,
-               "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Native system UI font (matches Cursor/VS Code on macOS — SF Pro). Cleaner
+     and lighter than a bundled webfont; falls back per-platform. */
+  --font-ui:   -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
+               "Inter", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-code: "SF Mono", "Menlo", "Monaco", "JetBrains Mono",
                "Consolas", "Liberation Mono", monospace;
 
@@ -64,6 +75,9 @@
 
   /* Hit-target floor for buttons */
   --hit: 28px;
+  /* Standard inline-control height — every top-bar / toolbar button uses this
+     so the chrome reads as one consistent row (matches the Terminals button). */
+  --ctl-h: 24px;
 }
 
 /* Default UI body styling — overrides browser defaults for buttons/inputs. */

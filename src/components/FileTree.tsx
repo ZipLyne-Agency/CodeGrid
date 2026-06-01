@@ -2,8 +2,9 @@ import { memo, useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { createFolder, listDirectory, renameFile, deleteFile, copyFile, moveFile, writeFileContents, type FileEntry } from "../lib/ipc";
 import { useAppStore } from "../stores/appStore";
-import { getFileIconUrl, getFolderIconUrl } from "../lib/fileIcons";
+import { getFileIconUrl } from "../lib/fileIcons";
 import { invoke } from "@tauri-apps/api/core";
+import { UI_ICON } from "../lib/icons";
 
 // Request deduplication: tracks in-flight directory loads
 const pendingLoads = new Set<string>();
@@ -601,44 +602,48 @@ const FileTreeNode = memo(function FileTreeNode({
           userSelect: "none",
         }}
       >
-        {/* Expand/collapse icon for dirs */}
+        {/* Folder: disclosure caret (no folder icon). File: type icon. */}
         {entry.is_dir ? (
           <span
             style={{
-              width: "14px",
+              width: "16px",
               flexShrink: 0,
-              color: "var(--text-accent)",
-              fontSize: "10px",
-              textAlign: "center",
-              display: "inline-block",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "var(--text-secondary)",
             }}
           >
-            {loading ? "..." : shouldShowExpanded ? "\u25BC" : "\u25B6"}
+            {shouldShowExpanded ? (
+              <UI_ICON.caretDown size={12} />
+            ) : (
+              <UI_ICON.caretRight size={12} />
+            )}
           </span>
         ) : (
-          <span style={{ width: "14px", flexShrink: 0 }} />
+          <>
+            {/* Spacer so file icons/names line up under folder names */}
+            <span style={{ width: "16px", flexShrink: 0 }} />
+            <img
+              src={getFileIconUrl(entry.name)}
+              width={16}
+              height={16}
+              style={{ flexShrink: 0, verticalAlign: "middle" }}
+              draggable={false}
+            />
+          </>
         )}
 
-        {/* Material file/folder icon */}
-        <img
-          src={entry.is_dir ? getFolderIconUrl(entry.name, shouldShowExpanded) : getFileIconUrl(entry.name)}
-          width={16}
-          height={16}
-          style={{ flexShrink: 0, verticalAlign: "middle" }}
-          draggable={false}
-        />
-
-        {/* File/dir name */}
+        {/* File/dir name \u2014 single neutral color; only icons carry color */}
         <span
           style={{
-            color: entry.is_dir ? "var(--text-primary)" : getFileColor(entry.name),
+            color: isSelected ? "var(--text-primary)" : "var(--text-secondary)",
             fontSize: "12px",
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
             flex: 1,
             marginLeft: 4,
-            fontWeight: entry.is_dir ? "bold" : "normal",
           }}
         >
           {entry.name}

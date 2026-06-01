@@ -1,6 +1,7 @@
 import { memo, useEffect, useState } from "react";
 import { checkAgentClis, setupAgentBus, type AgentClis } from "../lib/ipc";
 import { useWorkspaceStore } from "../stores/workspaceStore";
+import { UI_ICON } from "../lib/icons";
 
 const MONO = "var(--font-ui)";
 const ACCENT = "#ff8c00";
@@ -194,8 +195,8 @@ export const Onboarding = memo(function Onboarding({ onClose }: OnboardingProps)
                     );
                   })}
                   {!clis.node && (
-                    <div style={{ fontSize: "11px", color: "#ffab00", marginTop: "4px" }}>
-                      ⚠ Node.js not found — needed for agent collaboration. Install from nodejs.org.
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "11px", color: "#ffab00", marginTop: "4px" }}>
+                      <UI_ICON.warning size={13} weight="fill" style={{ flexShrink: 0 }} /> Node.js not found — needed for agent collaboration. Install from nodejs.org.
                     </div>
                   )}
                   {!anyAgent && (

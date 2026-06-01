@@ -5,29 +5,31 @@ import { useAppStore } from "../stores/appStore";
 import { useToastStore } from "../stores/toastStore";
 import {
   gitStatus, gitPush, gitPull, gitStageFile, gitUnstageFile, gitCommit,
-  gitDiffStat, quickPublish, quickSave,
+  gitDiffStat, quickPublish, quickSave, generateCommitMessage,
   gitListBranches, gitLog, gitCreateBranch, gitSwitchBranch, gitShowCommit,
   gitFetch, gitStash, gitStageAll, gitDiscardFile,
   type GitStatusInfo, type GitBranchInfo, type GitLogEntry,
 } from "../lib/ipc";
+import { useHasTier } from "./Gated";
 import { FileTree } from "./FileTree";
 import { ProjectSearch } from "./ProjectSearch";
 import { AgentBusPanel } from "./AgentBusPanel";
 import { AnalyticsPanel } from "./AnalyticsPanel";
 import { VersionBadge } from "./VersionBadge";
 import { getFileIconUrl } from "../lib/fileIcons";
+import { UI_ICON, type Icon } from "../lib/icons";
 
 // ---------------------------------------------------------------------------
 // Activity Bar (far-left icon rail)
 // ---------------------------------------------------------------------------
 
-const ACTIVITY_ITEMS: { id: ActivityPanel; label: string; icon: string }[] = [
-  { id: "files",    label: "Files",    icon: "\u2630" },
-  { id: "search",   label: "Search",   icon: "\u2315" },
-  { id: "git",      label: "Git",      icon: "\u2387" },
-  { id: "agentbus", label: "Bus", icon: "\u21c4" },
-  { id: "analytics", label: "Pro", icon: "\u25a4" },
-  { id: "settings", label: "Settings", icon: "\u2699" },
+const ACTIVITY_ITEMS: { id: ActivityPanel; label: string; icon: Icon }[] = [
+  { id: "files",     label: "Files",    icon: UI_ICON.files },
+  { id: "search",    label: "Search",   icon: UI_ICON.search },
+  { id: "git",       label: "Git",      icon: UI_ICON.git },
+  { id: "agentbus",  label: "Bus",      icon: UI_ICON.bus },
+  { id: "analytics", label: "Pro",      icon: UI_ICON.pro },
+  { id: "settings",  label: "Settings", icon: UI_ICON.settings },
 ];
 
 // ---------------------------------------------------------------------------
@@ -95,6 +97,7 @@ const GitPanel = memo(function GitPanel({
   const [commitFormOpen, setCommitFormOpen] = useState(false);
   const [commitMessage, setCommitMessage] = useState("");
   const [aiGenerating, setAiGenerating] = useState(false);
+  const isPro = useHasTier(1);
   const [publishLoading, setPublishLoading] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
@@ -254,43 +257,50 @@ const GitPanel = memo(function GitPanel({
     } catch (e) { addToast(`Commit failed: ${e}`, "error"); }
   }, [dir, commitMessage, onRefreshGit, addToast]);
 
+  // Free, offline fallback: a conventional-commit message inferred from filenames.
+  const buildHeuristicMessage = useCallback((): string => {
+    if (!workspaceGitStatus) return `Changes ${new Date().toLocaleDateString()}`;
+    const allChanges = [
+      ...workspaceGitStatus.staged.map((f) => ({ path: f.path, status: f.status })),
+      ...workspaceGitStatus.unstaged.map((f) => ({ path: f.path, status: f.status })),
+      ...workspaceGitStatus.untracked.map((p) => ({ path: p, status: "added" })),
+    ];
+    if (allChanges.length === 0) return `Changes ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`;
+    const paths = allChanges.map((c) => c.path.toLowerCase());
+    const hasTests = paths.some((p) => p.includes("test") || p.includes("spec"));
+    const hasFix = paths.some((p) => p.includes("fix") || allChanges.some((c) => c.status === "deleted"));
+    const hasConfig = paths.some((p) => p.includes("config") || p.includes(".json") || p.includes(".toml") || p.includes(".yml"));
+    const prefix = hasTests ? "test:" : hasFix ? "fix:" : hasConfig ? "chore:" : "feat:";
+    if (allChanges.length === 1) {
+      const fileName = allChanges[0].path.split("/").pop() ?? allChanges[0].path;
+      return `${prefix} update ${fileName}`;
+    }
+    const first = allChanges[0].path.split("/").pop() ?? allChanges[0].path;
+    const second = allChanges[1]?.path.split("/").pop() ?? "";
+    return allChanges.length === 2
+      ? `${prefix} update ${first}, ${second}`
+      : `${prefix} update ${allChanges.length} files: ${first}, ${second}...`;
+  }, [workspaceGitStatus]);
+
   const handleGenerateCommitMessage = useCallback(async () => {
     if (!dir || !workspaceGitStatus) return;
     setAiGenerating(true);
     try {
-      await gitDiffStat(dir);
-      const allChanges = [
-        ...workspaceGitStatus.staged.map((f) => ({ path: f.path, status: f.status })),
-        ...workspaceGitStatus.unstaged.map((f) => ({ path: f.path, status: f.status })),
-        ...workspaceGitStatus.untracked.map((p) => ({ path: p, status: "added" })),
-      ];
-      if (allChanges.length === 0) {
-        setCommitMessage(`Changes ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`);
-        return;
+      // Pro: real AI commit message from the diff (hosted Haiku, fair-use capped).
+      // Free: instant offline heuristic. AI errors (quota/offline) fall back too.
+      if (isPro) {
+        try {
+          const msg = await generateCommitMessage(dir);
+          if (msg && msg.trim()) { setCommitMessage(msg.trim()); return; }
+        } catch (e) {
+          addToast(`AI message unavailable (${e}) — used a basic one.`, "warning");
+        }
       }
-      const paths = allChanges.map((c) => c.path.toLowerCase());
-      const hasTests = paths.some((p) => p.includes("test") || p.includes("spec"));
-      const hasFix = paths.some((p) => p.includes("fix") || allChanges.some((c) => c.status === "deleted"));
-      const hasConfig = paths.some((p) => p.includes("config") || p.includes(".json") || p.includes(".toml") || p.includes(".yml"));
-      const prefix = hasTests ? "test:" : hasFix ? "fix:" : hasConfig ? "chore:" : "feat:";
-
-      if (allChanges.length === 1) {
-        const fileName = allChanges[0].path.split("/").pop() ?? allChanges[0].path;
-        setCommitMessage(`${prefix} update ${fileName}`);
-      } else {
-        const first = allChanges[0].path.split("/").pop() ?? allChanges[0].path;
-        const second = allChanges.length > 1 ? allChanges[1].path.split("/").pop() ?? allChanges[1].path : "";
-        const msg = allChanges.length === 2
-          ? `${prefix} update ${first}, ${second}`
-          : `${prefix} update ${allChanges.length} files: ${first}, ${second}...`;
-        setCommitMessage(msg);
-      }
-    } catch {
-      setCommitMessage(`Changes ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`);
+      setCommitMessage(buildHeuristicMessage());
     } finally {
       setAiGenerating(false);
     }
-  }, [dir, workspaceGitStatus]);
+  }, [dir, workspaceGitStatus, isPro, buildHeuristicMessage, addToast]);
 
   const handlePublish = useCallback(async () => {
     if (!dir || publishLoading) return;
@@ -464,8 +474,9 @@ const GitPanel = memo(function GitPanel({
               <button
                 onClick={() => setMoreOpen((o) => !o)}
                 title="More git actions"
-                style={{ ...gitMiniBtn("var(--border-strong)", "var(--text-secondary)"), padding: "4px 10px" }}
-              >\u22ef</button>
+                aria-label="More git actions"
+                style={{ ...gitMiniBtn("var(--border-strong)", "var(--text-secondary)"), padding: "4px 10px", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+              ><UI_ICON.more size={16} weight="bold" /></button>
               {moreOpen && (
                 <div style={{
                   position: "absolute", top: "calc(100% + 4px)", right: 0, minWidth: 170, zIndex: 200,
@@ -633,8 +644,8 @@ const GitPanel = memo(function GitPanel({
                   color: "var(--status-running)", fontWeight: "bold", fontSize: 11,
                   width: "14px", textAlign: "center", flexShrink: 0,
                 }}>{badge}</span>
-                <img src={getFileIconUrl(fileName)} width={14} height={14} style={{ flexShrink: 0, verticalAlign: "middle" }} draggable={false} />
-                <span style={{ color: "var(--text-primary)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
+                <img src={getFileIconUrl(fileName)} alt="" width={14} height={14} style={{ width: 14, height: 14, flexShrink: 0, verticalAlign: "middle", objectFit: "contain" }} draggable={false} />
+                <span style={{ color: "var(--text-primary)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, paddingLeft: 1 }}>
                   {fileName}
                 </span>
                 <button
@@ -671,8 +682,8 @@ const GitPanel = memo(function GitPanel({
                   color: badgeColor, fontWeight: "bold", fontSize: 11,
                   width: "14px", textAlign: "center", flexShrink: 0,
                 }}>{badge}</span>
-                <img src={getFileIconUrl(fileName)} width={14} height={14} style={{ flexShrink: 0, verticalAlign: "middle" }} draggable={false} />
-                <span style={{ color: "var(--text-primary)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
+                <img src={getFileIconUrl(fileName)} alt="" width={14} height={14} style={{ width: 14, height: 14, flexShrink: 0, verticalAlign: "middle", objectFit: "contain" }} draggable={false} />
+                <span style={{ color: "var(--text-primary)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, paddingLeft: 1 }}>
                   {fileName}
                 </span>
                 <button
@@ -707,8 +718,8 @@ const GitPanel = memo(function GitPanel({
                   color: "var(--status-idle)", fontWeight: "bold", fontSize: 11,
                   width: "14px", textAlign: "center", flexShrink: 0,
                 }}>U</span>
-                <img src={getFileIconUrl(fileName)} width={14} height={14} style={{ flexShrink: 0, verticalAlign: "middle" }} draggable={false} />
-                <span style={{ color: "var(--text-secondary)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
+                <img src={getFileIconUrl(fileName)} alt="" width={14} height={14} style={{ width: 14, height: 14, flexShrink: 0, verticalAlign: "middle", objectFit: "contain" }} draggable={false} />
+                <span style={{ color: "var(--text-secondary)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, paddingLeft: 1 }}>
                   {fileName}
                 </span>
                 <button
@@ -747,17 +758,20 @@ const GitPanel = memo(function GitPanel({
                   <button
                     onClick={handleGenerateCommitMessage}
                     disabled={aiGenerating}
-                    title="Generate commit message from changes"
+                    title={isPro ? "Write the commit message with AI (Pro)" : "Generate a basic message \u2014 upgrade to Pro for AI-written ones"}
+                    aria-label="Generate commit message"
                     style={{
-                      background: "var(--bg-tertiary)", border: "1px solid var(--border-default)",
-                      color: aiGenerating ? "var(--text-faint)" : "#d500f9",
-                      fontSize: 12, fontFamily: "var(--font-ui)",
+                      display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4,
+                      background: isPro ? "var(--accent-soft)" : "var(--bg-tertiary)",
+                      border: `1px solid ${isPro ? "var(--accent-border)" : "var(--border-default)"}`,
+                      color: aiGenerating ? "var(--text-faint)" : "var(--text-accent)",
+                      fontSize: 11, fontWeight: 700, fontFamily: "var(--font-ui)",
                       cursor: aiGenerating ? "wait" : "pointer",
-                      padding: "3px 5px", flexShrink: 0,
+                      padding: "0 7px", flexShrink: 0,
                     }}
-                    onMouseEnter={(e) => { if (!aiGenerating) e.currentTarget.style.borderColor = "#d500f9"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-default)"; }}
-                  >{aiGenerating ? "..." : "\u2726"}</button>
+                    onMouseEnter={(e) => { if (!aiGenerating) e.currentTarget.style.borderColor = "var(--text-accent)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = isPro ? "var(--accent-border)" : "var(--border-default)"; }}
+                  >{aiGenerating ? "\u2026" : <><UI_ICON.ai size={13} weight="fill" style={{ flexShrink: 0 }} /> AI</>}</button>
                 </div>
                 <div style={{ display: "flex", gap: "2px" }}>
                   <button
@@ -1157,7 +1171,6 @@ const SIDEBAR_WIDTH = 300;
 
 export const Sidebar = memo(function Sidebar() {
   const { workspaces, activeWorkspaceId, sidebarOpen, activePanel, setActivePanel } = useWorkspaceStore();
-  const toggleSidebar = useWorkspaceStore((s) => s.toggleSidebar);
   const sessions = useSessionStore((s) => s.sessions);
   const [workspaceGitStatus, setWorkspaceGitStatus] = useState<GitStatusInfo | null>(null);
 
@@ -1217,69 +1230,15 @@ export const Sidebar = memo(function Sidebar() {
   const showPanel = sidebarOpen;
 
   return (
-    <div style={{ position: "relative", height: "100%", flexShrink: 0, display: "flex" }}>
-      {/* Collapsed handle — slim vertical tab on the left edge, mirrors the terminal pop-out. */}
-      <button
-        onClick={() => toggleSidebar()}
-        aria-label="Open sidebar"
-        title="Open sidebar"
-        style={{
-          position: "absolute",
-          top: 14,
-          left: 0,
-          zIndex: 30,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 8,
-          padding: "12px 7px",
-          background: "rgba(20,20,20,0.94)",
-          border: "1px solid var(--border-default)",
-          borderLeft: "none",
-          borderRadius: "0 10px 10px 0",
-          boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
-          color: "var(--text-secondary)",
-          cursor: "pointer",
-          backdropFilter: "blur(6px)",
-          transform: showPanel ? "translateX(-20px)" : "translateX(0)",
-          opacity: showPanel ? 0 : 1,
-          pointerEvents: showPanel ? "none" : "auto",
-          transition: "transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease",
-          fontFamily: "var(--font-ui)",
-        }}
-        onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-accent)"; e.currentTarget.style.borderColor = "var(--text-accent)"; }}
-        onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-secondary)"; e.currentTarget.style.borderColor = "var(--border-default)"; }}
-      >
-        <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>{"»"}</span>
-        <span style={{
-          writingMode: "vertical-rl",
-          textOrientation: "mixed",
-          fontSize: 10,
-          fontWeight: 700,
-          letterSpacing: 1.5,
-        }}>
-          EXPLORER
-        </span>
-        {totalChanges > 0 && (
-          <span style={{
-            fontSize: 10, fontWeight: 800, lineHeight: 1,
-            color: "var(--text-accent)", background: "rgba(255,140,0,0.16)",
-            borderRadius: 6, padding: "3px 5px", fontVariantNumeric: "tabular-nums",
-          }}>
-            {totalChanges > 99 ? "99+" : totalChanges}
-          </span>
-        )}
-      </button>
-
-      <div
-        style={{
-          width: showPanel ? `${SIDEBAR_WIDTH}px` : "0px",
-          height: "100%",
-          overflow: "hidden",
-          transition: "width 0.2s ease",
-          flexShrink: 0,
-        }}
-      >
+    <div
+      style={{
+        width: showPanel ? `${SIDEBAR_WIDTH}px` : "0px",
+        height: "100%",
+        overflow: "hidden",
+        transition: "width 0.2s ease",
+        flexShrink: 0,
+      }}
+    >
       <div
         style={{
           width: SIDEBAR_WIDTH,
@@ -1309,6 +1268,7 @@ export const Sidebar = memo(function Sidebar() {
           {ACTIVITY_ITEMS.map((item) => {
             const isActive = panel === item.id;
             const badge = item.id === "git" ? totalChanges : 0;
+            const ItemIcon = item.icon;
             return (
               <button
                 key={item.id}
@@ -1334,7 +1294,7 @@ export const Sidebar = memo(function Sidebar() {
                 onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.color = "var(--text-secondary)"; }}
                 onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.color = "var(--text-faint)"; }}
               >
-                <span aria-hidden style={{ fontSize: 16, lineHeight: 1 }}>{item.icon}</span>
+                <ItemIcon size={18} weight={isActive ? "fill" : "regular"} />
                 <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: 0.2 }}>{item.label}</span>
                 {badge > 0 && (
                   <span style={{
@@ -1350,29 +1310,6 @@ export const Sidebar = memo(function Sidebar() {
               </button>
             );
           })}
-          {/* Collapse the whole sidebar (re-open via the edge handle or the top-bar « button). */}
-          <button
-            onClick={() => toggleSidebar()}
-            title="Collapse sidebar"
-            aria-label="Collapse sidebar"
-            style={{
-              flex: "0 0 26px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: "transparent",
-              border: "none",
-              borderLeft: "1px solid var(--border-default)",
-              color: "var(--text-faint)",
-              cursor: "pointer",
-              fontSize: 14,
-              transition: "color 0.12s ease",
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-accent)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-faint)"; }}
-          >
-            «
-          </button>
         </div>
 
         {/* Active workspace context line */}
@@ -1411,7 +1348,6 @@ export const Sidebar = memo(function Sidebar() {
           {panel === "analytics" && <AnalyticsPanel />}
           {panel === "settings" && <SettingsPanel />}
         </div>
-      </div>
       </div>
     </div>
   );

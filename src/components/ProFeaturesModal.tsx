@@ -3,6 +3,7 @@ import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { useAppStore } from "../stores/appStore";
 import { useEntitlementStore } from "../stores/entitlementStore";
 import { STAKE_URL, PRO_POWER_THRESHOLD, TIER_NAMES } from "../lib/entitlement";
+import { UI_ICON, type Icon } from "../lib/icons";
 
 /**
  * "Everything Pro gets you" — the full explainer popup behind the Learn-more
@@ -10,11 +11,11 @@ import { STAKE_URL, PRO_POWER_THRESHOLD, TIER_NAMES } from "../lib/entitlement";
  * the web make the same promise. Adapts to the viewer's current tier.
  */
 
-const FEATURES: { glyph: string; name: string; blurb: string }[] = [
-  { glyph: "◆", name: "AI code review", blurb: "Review your git changes — bugs, security & UX — straight from the Git panel, before you push. Powered by Claude Sonnet 4.6." },
-  { glyph: "▤", name: "Coding analytics", blurb: "A local dashboard built from your agent-CLI logs — sessions, lines, models, streaks. Nothing ever leaves your machine." },
-  { glyph: "⌁", name: "AI commit messages", blurb: "One click turns your staged diff into a clear, conventional commit message. No more \"wip\" or \"fix stuff\"." },
-  { glyph: "✎", name: "AI terminal naming", blurb: "Name any terminal from what it's actually doing — a real tab title, not just \"zsh\"." },
+const FEATURES: { icon: Icon; name: string; blurb: string }[] = [
+  { icon: UI_ICON.newAgent, name: "AI code review", blurb: "Review your git changes — bugs, security & UX — straight from the Git panel, before you push. Powered by Claude Sonnet 4.6." },
+  { icon: UI_ICON.pro, name: "Coding analytics", blurb: "A local dashboard built from your agent-CLI logs — sessions, lines, models, streaks. Nothing ever leaves your machine." },
+  { icon: UI_ICON.command, name: "AI commit messages", blurb: "One click turns your staged diff into a clear, conventional commit message. No more \"wip\" or \"fix stuff\"." },
+  { icon: UI_ICON.rename, name: "AI terminal naming", blurb: "Name any terminal from what it's actually doing — a real tab title, not just \"zsh\"." },
 ];
 
 const CAPS = "Fair-use limits: 30 AI reviews + 300 AI assists (commit & terminal names) per month. Coding analytics is local and uncapped.";
@@ -96,9 +97,9 @@ export const ProFeaturesModal = memo(function ProFeaturesModal() {
             <div key={f.name} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
               <span style={{
                 flexShrink: 0, width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center",
-                border: "1px solid var(--text-accent)", color: "var(--text-accent)", fontSize: 14,
+                border: "1px solid var(--text-accent)", color: "var(--accent)",
                 background: "rgba(255,140,0,0.08)",
-              }}>{f.glyph}</span>
+              }}><f.icon size={16} weight="regular" /></span>
               <div style={{ minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
                   <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>{f.name}</span>

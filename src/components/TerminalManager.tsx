@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useSessionStore, type SessionWithModel } from "../stores/sessionStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { jumpToSession } from "../lib/jumpToSession";
+import { UI_ICON } from "../lib/icons";
 
 /** Real terminals only — notes and browser/preview panes are not terminals. */
 function isTerminal(s: SessionWithModel): boolean {
@@ -218,11 +219,13 @@ export const TerminalManager = memo(function TerminalManager({ open, onClose }: 
                 cursor: "pointer",
                 fontFamily: MONO,
                 padding: "0 4px",
+                display: "inline-flex",
+                alignItems: "center",
               }}
               onMouseEnter={(e) => (e.currentTarget.style.color = "#e0e0e0")}
               onMouseLeave={(e) => (e.currentTarget.style.color = "#555")}
             >
-              x
+              <UI_ICON.close size={14} />
             </button>
           </div>
         </div>

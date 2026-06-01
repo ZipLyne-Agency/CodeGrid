@@ -7,6 +7,7 @@ import { useToastStore } from "../stores/toastStore";
 import { createWorkspace, renameWorkspace as renameWorkspaceIpc, setActiveWorkspace as setActiveWorkspaceIpc, renameSession as renameSessionIpc, deleteWorkspace as deleteWorkspaceIpc } from "../lib/ipc";
 import { jumpToSession, switchWorkspace } from "../lib/jumpToSession";
 import { detectAgent } from "../lib/paneTheme";
+import { UI_ICON } from "../lib/icons";
 import { CanvasControls } from "./CanvasControls";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -293,7 +294,7 @@ export const TopBar = memo(function TopBar({ onFocusSession, onCloseSession }: T
           onMouseEnter={(e) => (e.currentTarget.style.color = "#ff8c00")}
           onMouseLeave={(e) => (e.currentTarget.style.color = sidebarOpen ? "#ff8c00" : "#555555")}
         >
-          {sidebarOpen ? "\u00AB" : "\u00BB"}
+          <UI_ICON.sidebar size={15} weight={sidebarOpen ? "fill" : "regular"} style={{ flexShrink: 0 }} />
         </button>
 
 
@@ -386,7 +387,7 @@ export const TopBar = memo(function TopBar({ onFocusSession, onCloseSession }: T
             onMouseEnter={(e) => (e.currentTarget.style.color = "#ff8c00")}
             onMouseLeave={(e) => (e.currentTarget.style.color = "#555555")}
           >
-            +
+            <UI_ICON.plus size={15} weight="regular" style={{ flexShrink: 0 }} />
           </button>
         </div>
 
@@ -399,16 +400,17 @@ export const TopBar = memo(function TopBar({ onFocusSession, onCloseSession }: T
             className="cg-focus-ring"
             style={{
               display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0,
-              background: terminalDrawerOpen ? "rgba(255,140,0,0.12)" : "transparent",
-              border: `1px solid ${terminalDrawerOpen ? "rgba(255,140,0,0.5)" : "var(--border-default)"}`,
+              height: "var(--ctl-h)", boxSizing: "border-box",
+              background: terminalDrawerOpen ? "var(--accent-soft)" : "transparent",
+              border: `1px solid ${terminalDrawerOpen ? "var(--accent-border)" : "var(--border-default)"}`,
               color: terminalDrawerOpen ? "var(--text-accent)" : "var(--text-muted)",
               fontSize: 11, fontFamily: "var(--font-ui)", cursor: "pointer",
-              padding: "4px 9px", borderRadius: 6, whiteSpace: "nowrap",
+              padding: "0 9px", borderRadius: 6, whiteSpace: "nowrap",
             }}
             onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-accent)"; e.currentTarget.style.borderColor = "var(--text-accent)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = terminalDrawerOpen ? "var(--text-accent)" : "var(--text-muted)"; e.currentTarget.style.borderColor = terminalDrawerOpen ? "rgba(255,140,0,0.5)" : "var(--border-default)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = terminalDrawerOpen ? "var(--text-accent)" : "var(--text-muted)"; e.currentTarget.style.borderColor = terminalDrawerOpen ? "var(--accent-border)" : "var(--border-default)"; }}
           >
-            <span aria-hidden>{"▤"}</span> Terminals
+            <UI_ICON.terminals size={14} weight={terminalDrawerOpen ? "fill" : "regular"} style={{ flexShrink: 0 }} /> Terminals
             {activeSessions.filter(isTerminalSession).length > 0 && (
               <span style={{ fontSize: 9, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
                 {activeSessions.filter(isTerminalSession).length}
@@ -443,14 +445,17 @@ export const TopBar = memo(function TopBar({ onFocusSession, onCloseSession }: T
               title="Sort terminals: Order / Type / Recent"
               className="cg-focus-ring"
               style={{
-                background: "transparent", border: "1px solid var(--border-default)",
+                display: "inline-flex", alignItems: "center", height: "var(--ctl-h)", boxSizing: "border-box",
+                background: "transparent", border: "1px solid var(--border-default)", borderRadius: 6,
                 color: "var(--text-muted)", fontSize: 11, fontFamily: "var(--font-ui)",
-                cursor: "pointer", padding: "2px 8px", flexShrink: 0, whiteSpace: "nowrap",
+                cursor: "pointer", padding: "0 8px", flexShrink: 0, whiteSpace: "nowrap",
               }}
               onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-accent)"; e.currentTarget.style.borderColor = "var(--text-accent)"; }}
               onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; e.currentTarget.style.borderColor = "var(--border-default)"; }}
             >
-              ⇅ {SORT_LABEL[sortMode]}
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                <UI_ICON.sort size={13} weight="regular" style={{ flexShrink: 0 }} /> {SORT_LABEL[sortMode]}
+              </span>
             </button>
           )}
 
@@ -612,14 +617,17 @@ export const TopBar = memo(function TopBar({ onFocusSession, onCloseSession }: T
                 title="Notes & preview panes"
                 className="cg-focus-ring"
                 style={{
-                  background: "transparent", border: "1px solid var(--border-default)",
+                  display: "inline-flex", alignItems: "center", height: "var(--ctl-h)", boxSizing: "border-box",
+                  background: "transparent", border: "1px solid var(--border-default)", borderRadius: 6,
                   color: "var(--text-muted)", fontSize: 11, fontFamily: "var(--font-ui)",
-                  cursor: "pointer", padding: "2px 8px", whiteSpace: "nowrap",
+                  cursor: "pointer", padding: "0 8px", whiteSpace: "nowrap",
                 }}
                 onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-secondary)"; e.currentTarget.style.borderColor = "var(--border-strong)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; e.currentTarget.style.borderColor = "var(--border-default)"; }}
               >
-                ▤ Notes & Previews ({auxPanes.length})
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                  <UI_ICON.preview size={14} weight="regular" style={{ flexShrink: 0 }} /> Notes & Previews ({auxPanes.length})
+                </span>
               </button>
               {auxMenuOpen && (
                 <div style={{
@@ -641,7 +649,7 @@ export const TopBar = memo(function TopBar({ onFocusSession, onCloseSession }: T
                         onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
                         onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                       >
-                        <span aria-hidden style={{ color: isNote ? "var(--agent-note)" : "var(--agent-browser)", flexShrink: 0 }}>{isNote ? "✎" : "◧"}</span>
+                        {(() => { const Glyph = isNote ? UI_ICON.note : UI_ICON.preview; return <Glyph size={14} weight="regular" color={isNote ? "var(--agent-note)" : "var(--agent-browser)"} style={{ flexShrink: 0 }} />; })()}
                         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
                       </div>
                     );
@@ -680,7 +688,9 @@ export const TopBar = memo(function TopBar({ onFocusSession, onCloseSession }: T
             onMouseEnter={(e) => { e.currentTarget.style.background = "#ff8c0020"; e.currentTarget.style.color = "#ff8c00"; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#e0e0e0"; }}
           >
-            ✎ Rename
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+              <UI_ICON.rename size={13} weight="regular" style={{ flexShrink: 0 }} /> Rename
+            </span>
           </button>
           {ctxMenu.type === "workspace" && (
             <>
@@ -691,7 +701,9 @@ export const TopBar = memo(function TopBar({ onFocusSession, onCloseSession }: T
                 onMouseEnter={(e) => { e.currentTarget.style.background = "#ff3d0020"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
               >
-                ✕ Delete Workspace
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+                  <UI_ICON.trash size={13} weight="regular" style={{ flexShrink: 0 }} /> Delete Workspace
+                </span>
               </button>
             </>
           )}

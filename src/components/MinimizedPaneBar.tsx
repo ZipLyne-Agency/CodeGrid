@@ -1,6 +1,7 @@
 import { memo, useCallback } from "react";
 import type { SessionWithModel } from "../stores/sessionStore";
 import { jumpToSession } from "../lib/jumpToSession";
+import { UI_ICON } from "../lib/icons";
 
 interface MinimizedPaneBarProps {
   sessions: SessionWithModel[];
@@ -163,6 +164,8 @@ export const MinimizedPaneBar = memo(function MinimizedPaneBar({
                   "var(--font-ui)",
                 lineHeight: 1,
                 flexShrink: 0,
+                display: "inline-flex",
+                alignItems: "center",
               }}
               onMouseEnter={(e) =>
                 (e.currentTarget.style.color = "#ff3d00")
@@ -171,7 +174,7 @@ export const MinimizedPaneBar = memo(function MinimizedPaneBar({
                 (e.currentTarget.style.color = "#333333")
               }
             >
-              x
+              <UI_ICON.close size={13} />
             </button>
           </div>
         );

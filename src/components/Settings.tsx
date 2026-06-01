@@ -6,6 +6,7 @@ import { useUpdaterStore } from "../stores/updaterStore";
 import { checkForUpdates } from "../lib/updater";
 import { getSetting, setSetting, getClaudePath, getEnvAllowStatus, toggleEnvAllow, getProjectSearchRoots, setProjectSearchRoots, rescanProjectRoots, listRecentProjects } from "../lib/ipc";
 import { useAppStore } from "../stores/appStore";
+import { UI_ICON, type Icon } from "../lib/icons";
 import { PremiumPanel } from "./PremiumPanel";
 
 const ACCENT = "#ff8c00";
@@ -247,12 +248,12 @@ export const Settings = memo(function Settings() {
   );
   const hasRepo = !!activeWs?.repo_path;
 
-  const nav: { id: SectionId; label: string; glyph: string }[] = [
-    { id: "general", label: "General", glyph: "⚙" },
-    { id: "terminal", label: "Terminal", glyph: "▌" },
-    { id: "tools", label: "Tools", glyph: "⌗" },
-    { id: "shortcuts", label: "Shortcuts", glyph: "⌘" },
-    { id: "premium", label: "Premium", glyph: "★" },
+  const nav: { id: SectionId; label: string; icon: Icon }[] = [
+    { id: "general", label: "General", icon: UI_ICON.settings },
+    { id: "terminal", label: "Terminal", icon: UI_ICON.terminals },
+    { id: "tools", label: "Tools", icon: UI_ICON.mcp },
+    { id: "shortcuts", label: "Shortcuts", icon: UI_ICON.command },
+    { id: "premium", label: "Premium", icon: UI_ICON.crown },
   ];
 
   // Simple search filter — matches setting rows by their label text.
@@ -503,15 +504,17 @@ export const Settings = memo(function Settings() {
   );
 
   const renderTools = () => {
-    const tools: { label: string; help: string; onClick: () => void }[] = [
+    const tools: { label: string; help: string; icon: Icon; onClick: () => void }[] = [
       {
         label: "MCP Servers",
         help: "Manage Model Context Protocol servers, aggregated across every agent (Claude, Codex, Cursor, Gemini, Grok).",
+        icon: UI_ICON.mcp,
         onClick: () => { setSettingsOpen(false); setMcpManagerOpen(true); },
       },
       {
         label: "Skills",
         help: "Browse and manage Skills available to all agents.",
+        icon: UI_ICON.skills,
         onClick: () => { setSettingsOpen(false); setSkillsPanelOpen(true); },
       },
       {
@@ -519,6 +522,7 @@ export const Settings = memo(function Settings() {
         help: hasRepo
           ? "Edit AGENTS.md / CLAUDE.md instructions for the current project."
           : "Edit global AGENTS.md / CLAUDE.md agent instructions.",
+        icon: UI_ICON.note,
         onClick: () => { setSettingsOpen(false); setClaudeMdEditorOpen(true, activeRepoPath); },
       },
     ].filter((t) => matches(t.label));
@@ -543,9 +547,12 @@ export const Settings = memo(function Settings() {
               onMouseEnter={(e) => { e.currentTarget.style.borderColor = MAGENTA; e.currentTarget.style.background = "rgba(213,0,249,0.06)"; }}
               onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#2a2a2a"; e.currentTarget.style.background = "#0a0a0a"; }}
             >
-              <div style={{ minWidth: 0 }}>
-                <div style={{ color: "var(--text-primary)", fontSize: 12, fontWeight: 600 }}>{t.label}</div>
-                <div style={{ color: "var(--text-muted)", fontSize: 11, marginTop: "3px", lineHeight: 1.4 }}>{t.help}</div>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 11, minWidth: 0 }}>
+                <span style={{ color: MAGENTA, display: "inline-flex", flexShrink: 0, marginTop: 1 }}><t.icon size={16} weight="regular" /></span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ color: "var(--text-primary)", fontSize: 12, fontWeight: 600 }}>{t.label}</div>
+                  <div style={{ color: "var(--text-muted)", fontSize: 11, marginTop: "3px", lineHeight: 1.4 }}>{t.help}</div>
+                </div>
               </div>
               <span style={{ color: MAGENTA, fontSize: 16, flexShrink: 0 }}>→</span>
             </button>
@@ -663,7 +670,7 @@ export const Settings = memo(function Settings() {
                   onMouseEnter={(e) => { if (!active) e.currentTarget.style.color = "#cccccc"; }}
                   onMouseLeave={(e) => { if (!active) e.currentTarget.style.color = "#888888"; }}
                 >
-                  <span style={{ width: 16, textAlign: "center", flexShrink: 0, opacity: active ? 1 : 0.7 }}>{n.glyph}</span>
+                  <span style={{ width: 16, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, opacity: active ? 1 : 0.7 }}><n.icon size={16} weight={active ? "fill" : "regular"} /></span>
                   {n.label}
                 </button>
               );

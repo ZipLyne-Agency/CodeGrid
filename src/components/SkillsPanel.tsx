@@ -201,7 +201,14 @@ export const SkillsPanel = memo(function SkillsPanel() {
                   whiteSpace: "nowrap",
                 }}
               >
-                {isAll ? "ALL" : `${theme!.glyph} ${theme!.tag}`} ({count})
+                {isAll ? (
+                  `ALL (${count})`
+                ) : (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                    {(() => { const Glyph = theme!.icon; return <Glyph size={14} weight={active ? "fill" : "regular"} color={color} style={{ flexShrink: 0 }} />; })()}
+                    {theme!.tag} ({count})
+                  </span>
+                )}
               </button>
             );
           })}
@@ -226,7 +233,7 @@ export const SkillsPanel = memo(function SkillsPanel() {
                     borderTop: "1px solid #1c1c1c",
                   }}
                 >
-                  <span style={{ color: theme.color, fontSize: "12px" }}>{theme.glyph}</span>
+                  {(() => { const Glyph = theme.icon; return <Glyph size={14} weight="fill" color={theme.color} style={{ flexShrink: 0 }} />; })()}
                   <span style={{ color: theme.color, fontSize: "11px", fontWeight: "bold", letterSpacing: "1px" }}>
                     {theme.tag}
                   </span>

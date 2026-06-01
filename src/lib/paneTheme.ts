@@ -3,6 +3,8 @@
  * Color is paired with a glyph everywhere so the UI is legible without color.
  */
 
+import { AGENT_ICON, type Icon } from "./icons";
+
 export type AgentKind = "claude" | "codex" | "gemini" | "cursor" | "grok" | "shell" | "browser" | "note";
 
 export interface AgentTheme {
@@ -13,19 +15,21 @@ export interface AgentTheme {
   tag: string;
   /** Solid color (matches a CSS var). */
   color: string;
-  /** Unicode glyph that pairs with the color for non-color identification. */
+  /** Phosphor icon component for this agent/kind (use weight="fill" when active). */
+  icon: Icon;
+  /** Legacy unicode glyph — kept as a fallback; prefer `icon`. */
   glyph: string;
 }
 
 const AGENTS: Record<AgentKind, AgentTheme> = {
-  claude:  { kind: "claude",  label: "Claude",  tag: "CLAUDE",  color: "#ff8c00", glyph: "◆" },
-  codex:   { kind: "codex",   label: "Codex",   tag: "CODEX",   color: "#2ddc7c", glyph: "▶" },
-  gemini:  { kind: "gemini",  label: "Gemini",  tag: "GEMINI",  color: "#5fa8ff", glyph: "✦" },
-  cursor:  { kind: "cursor",  label: "Cursor",  tag: "CURSOR",  color: "#b87cf7", glyph: "⌖" },
-  grok:    { kind: "grok",    label: "Grok",    tag: "GROK",    color: "#e6e6e6", glyph: "⌬" },
-  shell:   { kind: "shell",   label: "Shell",   tag: "SHELL",   color: "#5fa8ff", glyph: "›_" },
-  browser: { kind: "browser", label: "Browser", tag: "WEB",     color: "#5fa8ff", glyph: "◧" },
-  note:    { kind: "note",    label: "Note",    tag: "NOTE",    color: "#ffc233", glyph: "✎" },
+  claude:  { kind: "claude",  label: "Claude",  tag: "CLAUDE",  color: "#ff8c00", icon: AGENT_ICON.claude,  glyph: "◆" },
+  codex:   { kind: "codex",   label: "Codex",   tag: "CODEX",   color: "#5cb185", icon: AGENT_ICON.codex,   glyph: "▶" },
+  gemini:  { kind: "gemini",  label: "Gemini",  tag: "GEMINI",  color: "#6f9bcc", icon: AGENT_ICON.gemini,  glyph: "✦" },
+  cursor:  { kind: "cursor",  label: "Cursor",  tag: "CURSOR",  color: "#a98bd6", icon: AGENT_ICON.cursor,  glyph: "⌖" },
+  grok:    { kind: "grok",    label: "Grok",    tag: "GROK",    color: "#cfcfcf", icon: AGENT_ICON.grok,    glyph: "⌬" },
+  shell:   { kind: "shell",   label: "Shell",   tag: "SHELL",   color: "#6f9bcc", icon: AGENT_ICON.shell,   glyph: "›_" },
+  browser: { kind: "browser", label: "Browser", tag: "WEB",     color: "#6f9bcc", icon: AGENT_ICON.browser, glyph: "◧" },
+  note:    { kind: "note",    label: "Note",    tag: "NOTE",    color: "#d6a94e", icon: AGENT_ICON.note,    glyph: "✎" },
 };
 
 /** Detect the agent from a stored command string (binary path). */

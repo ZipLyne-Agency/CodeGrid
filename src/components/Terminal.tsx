@@ -7,6 +7,7 @@ import { useToastStore } from "../stores/toastStore";
 import { updateSessionStatus } from "../lib/ipc";
 import { detectActivity, detectAttentionNeeded, detectAgentBusy } from "../lib/terminalActivity";
 import { registerTerminalSnapshot, unregisterTerminalSnapshot } from "../lib/terminalSnapshots";
+import { UI_ICON } from "../lib/icons";
 
 /** Agent CLIs whose status we infer from spinner/prompt markers rather than raw output. */
 function commandIsAgent(command: string | null | undefined): boolean {
@@ -486,7 +487,8 @@ export const TerminalView = memo(function TerminalView({ sessionId, agentColor }
           }} style={{
             background: "none", border: "none", color: "#555", fontSize: "12px",
             cursor: "pointer", padding: "0 4px", fontFamily: "monospace",
-          }}>×</button>
+            display: "inline-flex", alignItems: "center",
+          }}><UI_ICON.close size={13} /></button>
         </div>
       )}
     </div>

@@ -12,6 +12,7 @@ import { useSessionStore } from "../stores/sessionStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useNotesStore } from "../stores/notesStore";
+import { UI_ICON } from "../lib/icons";
 import { useShallow } from "zustand/react/shallow";
 
 interface CanvasProps {
@@ -124,8 +125,8 @@ export const Canvas = memo(function Canvas({ width, height, onCloseSession }: Ca
   const hasMinimized = Object.keys(minimizedPanes).length > 0;
   const canvasHeight = height;
   const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
-  // Space-held "hand tool" mode — drives the grab/grabbing cursor + pan overlay.
-  // Mirrored into live.current.spaceHeld for the no-render gesture fast path.
+  // Explicit pan-tool mode — toggled by the bottom-bar "Pan" button. When on, a
+  // full-canvas overlay shows a grab cursor and captures drags to pan.
   const [panMode, setPanMode] = useState(false);
 
   const minimizedSessions = useMemo(() => {
@@ -326,46 +327,21 @@ export const Canvas = memo(function Canvas({ width, height, onCloseSession }: Ca
     return () => { vp.removeEventListener("wheel", handler); if (wheelCommitTimer.current) clearTimeout(wheelCommitTimer.current); };
   }, []);
 
-  // ── Spacebar ──
+  // ── Pan tool (explicit toggle, driven by the bottom-bar "Pan" button) ──
+  // Pan mode is OFF by default so terminals stay fully interactive (scroll,
+  // wheel-zoom, click). When ON, a full-canvas overlay captures drags to pan.
+  // Escape or losing window focus exits so the grab cursor can never get stuck.
   useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if (e.code !== "Space" || e.repeat) return;
-      const t = e.target as HTMLElement | null;
-      // Never steal space from text inputs of any kind — plain inputs/textareas,
-      // CodeMirror's contenteditable, the URL bar in a browser pane chrome,
-      // or any element marked as editable.
-      if (
-        t instanceof HTMLInputElement ||
-        t instanceof HTMLTextAreaElement ||
-        t?.isContentEditable ||
-        t?.closest?.("[contenteditable='true'], .cm-editor, .cm-content")
-      ) {
-        return;
-      }
-      e.preventDefault();
-      // Don't hijack into the hand tool while maximized or mid-gesture (drag/resize).
-      if (maximizedPane || (live.current.mode !== "idle" && live.current.mode !== "pan")) return;
-      live.current.spaceHeld = true;
-      setPanMode(true);
-    };
-    const up = (e: KeyboardEvent) => {
-      if (e.code === "Space") {
-        live.current.spaceHeld = false;
-        setPanMode(false);
-      }
-    };
-    // Releasing focus (e.g. tab/window blur) must also exit the hand tool so the
-    // cursor/overlay don't get stuck if the keyup never fires.
-    const blur = () => { live.current.spaceHeld = false; setPanMode(false); };
-    window.addEventListener("keydown", down);
-    window.addEventListener("keyup", up);
-    window.addEventListener("blur", blur);
-    return () => {
-      window.removeEventListener("keydown", down);
-      window.removeEventListener("keyup", up);
-      window.removeEventListener("blur", blur);
-    };
-  }, [maximizedPane]);
+    if (!panMode) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setPanMode(false); };
+    const onBlur = () => setPanMode(false);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("blur", onBlur);
+    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("blur", onBlur); };
+  }, [panMode]);
+
+  // Maximizing a pane must drop out of pan mode (the overlay would block it).
+  useEffect(() => { if (maximizedPane && panMode) setPanMode(false); }, [maximizedPane, panMode]);
 
   // ── External zoom-to-pane command (from top terminal tabs) ──
   useEffect(() => {
@@ -738,9 +714,9 @@ export const Canvas = memo(function Canvas({ width, height, onCloseSession }: Ca
           }}
         />
 
-        {/* Hand-tool overlay — only present while Space is held. Sits above panes
-            and the bottom bar so a drag anywhere pans the whole canvas instead of
-            clicking into a terminal. Uses the same pan machinery as the viewport. */}
+        {/* Pan-tool overlay — only present while the Pan toggle is on. Sits above
+            panes so a drag anywhere pans the whole canvas instead of clicking into
+            a terminal. Uses the same pan machinery as the viewport. */}
         {panMode && !maximizedPane && (
           <div
             ref={panOverlayRef}
@@ -759,7 +735,16 @@ export const Canvas = memo(function Canvas({ width, height, onCloseSession }: Ca
               zIndex: 950,
               cursor: "grab",
             }}
-          />
+          >
+            <div style={{
+              position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)",
+              background: "rgba(20,20,20,0.92)", border: "1px solid var(--accent-border)",
+              color: "var(--accent)", fontFamily: MONO, fontSize: 11, letterSpacing: "0.04em",
+              padding: "4px 10px", borderRadius: 6, pointerEvents: "none", whiteSpace: "nowrap",
+            }}>
+              Pan mode — drag to move · Esc to exit
+            </div>
+          </div>
         )}
 
         {/* Dot grid background */}
@@ -1023,6 +1008,24 @@ export const Canvas = memo(function Canvas({ width, height, onCloseSession }: Ca
             )}
           </div>
           <button
+            onClick={() => setPanMode((v) => !v)}
+            title={panMode ? "Pan mode ON — drag anywhere to move the canvas (Esc to exit)" : "Pan mode: drag the canvas without touching panes"}
+            aria-pressed={panMode}
+            style={{
+              background: panMode ? "var(--accent-soft)" : "#1a1a1a",
+              border: `1px solid ${panMode ? "var(--accent)" : "var(--border-default)"}`,
+              color: panMode ? "var(--accent)" : "var(--text-muted)",
+              padding: "3px 8px",
+              cursor: "pointer",
+              fontFamily: MONO,
+              fontSize: 12,
+            }}
+            onMouseEnter={(e) => { if (!panMode) { e.currentTarget.style.color = "var(--text-accent)"; e.currentTarget.style.borderColor = "var(--text-accent)"; } }}
+            onMouseLeave={(e) => { if (!panMode) { e.currentTarget.style.color = "var(--text-muted)"; e.currentTarget.style.borderColor = "var(--border-default)"; } }}
+          >
+            PAN
+          </button>
+          <button
             onClick={handleFitAll}
             title="Zoom to fit all panes into view"
             style={{
@@ -1051,9 +1054,12 @@ export const Canvas = memo(function Canvas({ width, height, onCloseSession }: Ca
               cursor: "pointer",
               fontFamily: MONO,
               fontSize: 12,
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
             }}
           >
-            {canvas.locked ? "🔒" : "🔓"}
+            {canvas.locked
+              ? <UI_ICON.lock size={13} weight="fill" style={{ flexShrink: 0 }} />
+              : <UI_ICON.lockOpen size={13} weight="regular" style={{ flexShrink: 0 }} />}
           </button>
           <span
             ref={zoomLabelRef}
