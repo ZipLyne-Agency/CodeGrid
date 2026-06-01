@@ -1,5 +1,6 @@
 import { memo, useState, useCallback } from "react";
 import { useSessionStore } from "../stores/sessionStore";
+import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useToastStore } from "../stores/toastStore";
 import { setupAgentBus } from "../lib/ipc";
 import { detectAgent, statusTheme } from "../lib/paneTheme";
@@ -14,12 +15,16 @@ const MONO = "var(--font-code)";
  */
 export const AgentBusPanel = memo(function AgentBusPanel() {
   const sessions = useSessionStore((s) => s.sessions);
+  const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const addToast = useToastStore((s) => s.addToast);
   const [installing, setInstalling] = useState(false);
 
   // Real agent terminals (not shells/notes/browsers) are the bus participants.
+  // The bus is scoped per-workspace, so the panel mirrors that: only agents in
+  // the active workspace are shown — matching what those agents see on the bus.
   const agents = sessions.filter((s) => {
     if (s.kind === "note" || s.kind === "browser") return false;
+    if (activeWorkspaceId && s.workspace_id !== activeWorkspaceId) return false;
     return /\b(claude|codex|gemini|cursor|grok)\b/.test((s.command ?? "").toLowerCase());
   });
 

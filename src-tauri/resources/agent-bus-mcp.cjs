@@ -21,6 +21,13 @@ const HOME = os.homedir();
 const SOCKET_PATH_FILE = path.join(HOME, ".codegrid", "socket-path");
 const SOCKET_FALLBACK = path.join(HOME, ".codegrid", "socket");
 
+// This server runs as a child of the agent CLI inside a CodeGrid pane, so it
+// inherits the pane's identity from the environment. Sending the workspace id
+// with every RPC lets CodeGrid scope the bus to a single workspace: an agent
+// only sees and can only message other agents in its own workspace. Absent
+// (e.g. a CLI launched outside CodeGrid) → unscoped, sees everything.
+const SELF_WORKSPACE_ID = process.env.CODEGRID_WORKSPACE_ID || null;
+
 function socketPath() {
   try {
     const p = fs.readFileSync(SOCKET_PATH_FILE, "utf8").trim();
@@ -122,7 +129,7 @@ const TOOLS = [
 async function callTool(name, args) {
   args = args || {};
   if (name === "list_agents") {
-    const r = await rpc("agent_list", {});
+    const r = await rpc("agent_list", { workspace_id: SELF_WORKSPACE_ID });
     const agents = (r && r.agents) || [];
     if (agents.length === 0) return "No agents are currently running in CodeGrid.";
     const lines = agents.map(
@@ -133,7 +140,11 @@ async function callTool(name, args) {
   }
   if (name === "read_pane") {
     if (!args.session_id) throw new Error("session_id is required");
-    const r = await rpc("agent_read", { session_id: args.session_id, max_bytes: args.max_bytes });
+    const r = await rpc("agent_read", {
+      session_id: args.session_id,
+      max_bytes: args.max_bytes,
+      workspace_id: SELF_WORKSPACE_ID,
+    });
     const text = clean(r && r.output).trimEnd();
     const tail = text.split("\n").slice(-40).join("\n");
     return tail || "(no recent output)";
@@ -145,6 +156,7 @@ async function callTool(name, args) {
       session_id: args.session_id,
       text: args.text,
       submit: args.submit !== false,
+      workspace_id: SELF_WORKSPACE_ID,
     });
     return `Message delivered to ${args.session_id}. Use read_pane to see its reply.`;
   }

@@ -226,6 +226,7 @@ pub async fn create_session(
     // Spawn PTY
     let mut rx = state.pty_manager.spawn_session(
         &session_id,
+        &workspace_id,
         &actual_dir,
         &command_path,
         &args,
@@ -989,6 +990,7 @@ pub async fn spawn_shell_session(
 
     let mut rx = state.pty_manager.spawn_session(
         &session_id,
+        &workspace_id,
         &working_dir,
         &shell,
         &[],

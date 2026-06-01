@@ -153,14 +153,21 @@ async fn handle_request(app: &tauri::AppHandle, line: &str) -> RpcResponse {
         }
 
         // ---- Agent bus: let one agent observe / message another agent's pane ----
+        // The Agent Bus is scoped per-workspace: the caller's workspace identity
+        // (CODEGRID_WORKSPACE_ID, threaded through the MCP server as `workspace_id`)
+        // limits discovery and messaging to panes in that same workspace. A caller
+        // with no workspace identity is unscoped and sees/reaches everything, which
+        // preserves behavior for panes not spawned through CodeGrid.
         "agent_list" => match app.try_state::<Arc<AppState>>() {
             Some(state) => {
+                let caller_ws = params.get("workspace_id").and_then(|v| v.as_str());
                 let sessions = state.sessions.lock().await;
                 // Scratch (ephemeral) terminals are private to their pane — never
                 // expose them to other agents on the bus.
                 let agents: Vec<SessionInfo> = sessions
                     .iter()
                     .filter(|s| !crate::commands::is_ephemeral_workspace(&s.workspace_id))
+                    .filter(|s| caller_ws.map_or(true, |w| s.workspace_id == w))
                     .map(SessionInfo::from)
                     .collect();
                 Ok(serde_json::json!({ "agents": agents }))
@@ -170,18 +177,25 @@ async fn handle_request(app: &tauri::AppHandle, line: &str) -> RpcResponse {
 
         "agent_read" => {
             let sid = params.get("session_id").and_then(|v| v.as_str());
+            let caller_ws = params.get("workspace_id").and_then(|v| v.as_str());
             let max = params
                 .get("max_bytes")
                 .and_then(|v| v.as_u64())
                 .unwrap_or(4000) as usize;
             match (app.try_state::<Arc<AppState>>(), sid) {
-                (Some(state), Some(id)) => match state.pty_manager.read_output(id, max) {
-                    Some(bytes) => {
-                        let text = String::from_utf8_lossy(&bytes).to_string();
-                        Ok(serde_json::json!({ "output": text }))
+                (Some(state), Some(id)) => {
+                    if !caller_may_access(&state, caller_ws, id).await {
+                        Err("Target agent is in a different workspace")
+                    } else {
+                        match state.pty_manager.read_output(id, max) {
+                            Some(bytes) => {
+                                let text = String::from_utf8_lossy(&bytes).to_string();
+                                Ok(serde_json::json!({ "output": text }))
+                            }
+                            None => Err("Session not found or has no output"),
+                        }
                     }
-                    None => Err("Session not found or has no output"),
-                },
+                }
                 (None, _) => Err("App state unavailable"),
                 (_, None) => Err("Missing 'session_id'"),
             }
@@ -189,6 +203,7 @@ async fn handle_request(app: &tauri::AppHandle, line: &str) -> RpcResponse {
 
         "agent_send" => {
             let sid = params.get("session_id").and_then(|v| v.as_str());
+            let caller_ws = params.get("workspace_id").and_then(|v| v.as_str());
             let text = params.get("text").and_then(|v| v.as_str());
             let submit = params
                 .get("submit")
@@ -196,16 +211,20 @@ async fn handle_request(app: &tauri::AppHandle, line: &str) -> RpcResponse {
                 .unwrap_or(true);
             match (app.try_state::<Arc<AppState>>(), sid, text) {
                 (Some(state), Some(id), Some(t)) => {
-                    match state.pty_manager.write_to_pty(id, t.as_bytes()) {
-                        Ok(_) => {
-                            if submit {
-                                // Let the target CLI register the pasted text before Enter.
-                                tokio::time::sleep(std::time::Duration::from_millis(120)).await;
-                                let _ = state.pty_manager.write_to_pty(id, b"\r");
+                    if !caller_may_access(&state, caller_ws, id).await {
+                        Err("Target agent is in a different workspace")
+                    } else {
+                        match state.pty_manager.write_to_pty(id, t.as_bytes()) {
+                            Ok(_) => {
+                                if submit {
+                                    // Let the target CLI register the pasted text before Enter.
+                                    tokio::time::sleep(std::time::Duration::from_millis(120)).await;
+                                    let _ = state.pty_manager.write_to_pty(id, b"\r");
+                                }
+                                Ok(serde_json::json!({ "status": "ok" }))
                             }
-                            Ok(serde_json::json!({ "status": "ok" }))
+                            Err(_) => Err("Failed to write to session"),
                         }
-                        Err(_) => Err("Failed to write to session"),
                     }
                 }
                 (None, _, _) => Err("App state unavailable"),
@@ -233,6 +252,27 @@ async fn handle_request(app: &tauri::AppHandle, line: &str) -> RpcResponse {
             }),
             id,
         },
+    }
+}
+
+/// Agent-bus workspace isolation gate. A caller that advertises a workspace
+/// (via `workspace_id`, sourced from CODEGRID_WORKSPACE_ID in its PTY) may only
+/// read or message panes that live in that same workspace. A caller with no
+/// workspace identity is unscoped and may reach any pane — preserving behavior
+/// for CLIs not launched inside a CodeGrid pane.
+async fn caller_may_access(
+    state: &crate::commands::AppState,
+    caller_ws: Option<&str>,
+    target_id: &str,
+) -> bool {
+    match caller_ws {
+        None => true,
+        Some(w) => {
+            let sessions = state.sessions.lock().await;
+            sessions
+                .iter()
+                .any(|s| s.id == target_id && s.workspace_id == w)
+        }
     }
 }
 

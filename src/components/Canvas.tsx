@@ -1,4 +1,6 @@
-import { useCallback, useMemo, memo, useRef, useEffect, useState } from "react";
+import { useCallback, useMemo, memo, useRef, useEffect, useLayoutEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { clampMenuPosition } from "../lib/menuPosition";
 import { Pane } from "./Pane";
 import { BrowserPane } from "./BrowserPane";
 import { NotePane } from "./NotePane";
@@ -39,6 +41,7 @@ const snap = (v: number) => Math.round(v / GRID) * GRID;
 
 export const Canvas = memo(function Canvas({ width, height, onCloseSession }: CanvasProps) {
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
+  const setNewSessionDialogOpen = useWorkspaceStore((s) => s.setNewSessionDialogOpen);
   // Render ALL sessions across all workspaces to keep xterm instances alive.
   // Non-active workspace sessions are hidden with CSS (display:none) to preserve
   // terminal buffer content when switching workspaces.
@@ -127,6 +130,44 @@ export const Canvas = memo(function Canvas({ width, height, onCloseSession }: Ca
   // Explicit pan-tool mode — toggled by the bottom-bar "Pan" button. When on, a
   // full-canvas overlay shows a grab cursor and captures drags to pan.
   const [panMode, setPanMode] = useState(false);
+
+  // ── Right-click "Add to canvas" context menu ──
+  // Anything you can drop on the canvas lives here. Opens at the cursor on a
+  // right-click of empty canvas (not over a pane/note, where the terminal or
+  // note gets its own native menu). Mirrors the "+ New" menu's add items.
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
+  const [ctxPos, setCtxPos] = useState<{ top: number; left: number } | null>(null);
+  const ctxRef = useRef<HTMLDivElement>(null);
+
+  const handleCanvasContextMenu = useCallback((e: React.MouseEvent) => {
+    if (maximizedPane || panMode) return;
+    // Right-clicking inside a pane or note: leave it to that element (xterm
+    // paste menu, note actions). Only the bare canvas opens the add menu.
+    const t = e.target as HTMLElement;
+    if (t.closest("[data-pane-id]") || t.closest("[data-note-id]")) return;
+    e.preventDefault();
+    setCtxMenu({ x: e.clientX, y: e.clientY });
+  }, [maximizedPane, panMode]);
+
+  // Clamp the menu fully on-screen once measured (flips near a viewport edge).
+  useLayoutEffect(() => {
+    if (!ctxMenu || !ctxRef.current) { setCtxPos(null); return; }
+    const m = ctxRef.current.getBoundingClientRect();
+    const anchor = { top: ctxMenu.y, bottom: ctxMenu.y, left: ctxMenu.x, right: ctxMenu.x };
+    setCtxPos(clampMenuPosition(anchor, { width: m.width, height: m.height }, { gap: 2 }));
+  }, [ctxMenu]);
+
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const close = (e: MouseEvent | KeyboardEvent) => {
+      if (e instanceof KeyboardEvent) { if (e.key === "Escape") setCtxMenu(null); return; }
+      if ((e.target as HTMLElement).closest("[data-canvas-ctx]")) return;
+      setCtxMenu(null);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", close);
+    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", close); };
+  }, [ctxMenu]);
 
   const minimizedSessions = useMemo(() => {
     const minIds = new Set(Object.keys(minimizedPanes));
@@ -675,6 +716,7 @@ export const Canvas = memo(function Canvas({ width, height, onCloseSession }: Ca
         ref={viewportRef}
         data-canvas-viewport
         onMouseDown={handleCanvasMouseDown}
+        onContextMenu={handleCanvasContextMenu}
         style={{
           position: "relative",
           width: "100%",
@@ -1029,6 +1071,50 @@ export const Canvas = memo(function Canvas({ width, height, onCloseSession }: Ca
             <MinimizedPaneBar sessions={minimizedSessions} onCloseSession={onCloseSession} />
           </div>
         </div>
+      )}
+
+      {ctxMenu && createPortal(
+        <div
+          data-canvas-ctx
+          ref={ctxRef}
+          style={{
+            position: "fixed", top: ctxPos?.top ?? -9999, left: ctxPos?.left ?? -9999,
+            visibility: ctxPos ? "visible" : "hidden", width: 320, maxWidth: "92vw",
+            background: "var(--bg-secondary)", border: "1px solid var(--border-strong)",
+            borderRadius: 8, boxShadow: "0 12px 32px rgba(0,0,0,0.6)", zIndex: 100000, padding: 6,
+            fontFamily: MONO,
+          }}
+        >
+          <div style={{ padding: "4px 10px 6px", fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--text-faint)" }}>
+            Add to canvas
+          </div>
+          {([
+            { icon: UI_ICON.newAgent, color: "var(--accent)", label: "New agent session", hint: "pick agent", run: () => setNewSessionDialogOpen(true) },
+            { icon: UI_ICON.scratch, color: "var(--agent-shell)", label: "Scratch terminal", hint: "⇧⌘J", run: () => window.dispatchEvent(new CustomEvent("codegrid:new-scratch-pane", { detail: {} })) },
+            { icon: UI_ICON.preview, color: "var(--agent-browser)", label: "Preview pane", hint: "localhost", run: () => window.dispatchEvent(new CustomEvent("codegrid:new-browser-pane", { detail: { url: "", focusUrl: true } })) },
+            { icon: UI_ICON.note, color: "var(--agent-note)", label: "Note", hint: "markdown", run: () => window.dispatchEvent(new CustomEvent("codegrid:new-note-pane", { detail: {} })) },
+          ] as const).map((item) => (
+            <button
+              key={item.label}
+              onClick={() => { setCtxMenu(null); item.run(); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 11, width: "100%",
+                background: "transparent", border: "none", cursor: "pointer",
+                padding: "8px 10px", borderRadius: 6, textAlign: "left",
+                color: "var(--text-primary)", fontFamily: MONO,
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            >
+              <span aria-hidden style={{ color: item.color, width: 16, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <item.icon size={15} weight="regular" />
+              </span>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 600 }}>{item.label}</span>
+              <span style={{ color: "var(--text-faint)", fontSize: 10, flexShrink: 0 }}>{item.hint}</span>
+            </button>
+          ))}
+        </div>,
+        document.body,
       )}
     </div>
   );

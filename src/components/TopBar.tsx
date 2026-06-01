@@ -1,5 +1,6 @@
-import { memo, useCallback, useState, useMemo, useEffect, useRef } from "react";
+import { memo, useCallback, useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { clampMenuPosition } from "../lib/menuPosition";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useSessionStore } from "../stores/sessionStore";
 import { useLayoutStore } from "../stores/layoutStore";
@@ -162,6 +163,33 @@ export const TopBar = memo(function TopBar({ onFocusSession, onCloseSession }: T
       addToast(`Failed to create workspace: ${e}`, "error");
     }
   }, [workspaces.length, addWorkspace, addToast]);
+
+  // "+" workspace menu: a normal (project) workspace, or a project-less
+  // scratchpad sandbox that holds only throwaway scratch terminals.
+  const [wsMenuOpen, setWsMenuOpen] = useState(false);
+  const [wsMenuPos, setWsMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const wsBtnRef = useRef<HTMLButtonElement>(null);
+  const wsPopRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (!wsMenuOpen || !wsBtnRef.current || !wsPopRef.current) { setWsMenuPos(null); return; }
+    const a = wsBtnRef.current.getBoundingClientRect();
+    const m = wsPopRef.current.getBoundingClientRect();
+    setWsMenuPos(clampMenuPosition(a, { width: m.width, height: m.height }, { gap: 6 }));
+  }, [wsMenuOpen]);
+
+  useEffect(() => {
+    if (!wsMenuOpen) return;
+    const close = (e: MouseEvent | KeyboardEvent) => {
+      if (e instanceof KeyboardEvent) { if (e.key === "Escape") setWsMenuOpen(false); return; }
+      const t = e.target as HTMLElement;
+      if (t.closest("[data-ws-menu]") || t.closest("[data-ws-btn]")) return;
+      setWsMenuOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", close);
+    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", close); };
+  }, [wsMenuOpen]);
 
   // Single shared switch impl (restores the full view + reconciles focus). Keep
   // all switch entry points on switchWorkspace so they can't drift apart.
@@ -378,18 +406,63 @@ export const TopBar = memo(function TopBar({ onFocusSession, onCloseSession }: T
             );
           })}
           <button
-            onClick={handleNewWorkspace}
-            title="New Workspace (Cmd+Shift+N)"
+            ref={wsBtnRef}
+            data-ws-btn
+            onClick={() => setWsMenuOpen((o) => !o)}
+            title="New workspace…"
+            aria-haspopup="menu"
+            aria-expanded={wsMenuOpen}
             style={{
-              background: "none", border: "none", color: "#555555", fontSize: "16px",
+              background: "none", border: "none", color: wsMenuOpen ? "#ff8c00" : "#555555", fontSize: "16px",
               cursor: "pointer", padding: "2px 8px", fontFamily: "var(--font-ui)", flexShrink: 0, lineHeight: 1,
             }}
             onMouseEnter={(e) => (e.currentTarget.style.color = "#ff8c00")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "#555555")}
+            onMouseLeave={(e) => { if (!wsMenuOpen) e.currentTarget.style.color = "#555555"; }}
           >
             <UI_ICON.plus size={15} weight="regular" style={{ flexShrink: 0 }} />
           </button>
         </div>
+
+        {wsMenuOpen && createPortal(
+          <div
+            data-ws-menu
+            ref={wsPopRef}
+            style={{
+              position: "fixed", top: wsMenuPos?.top ?? -9999, left: wsMenuPos?.left ?? -9999,
+              visibility: wsMenuPos ? "visible" : "hidden", width: 320, maxWidth: "92vw",
+              background: "var(--bg-secondary)", border: "1px solid var(--border-strong)",
+              borderRadius: 8, boxShadow: "0 12px 32px rgba(0,0,0,0.6)", zIndex: 100000, padding: 6,
+              fontFamily: "var(--font-ui)",
+            }}
+          >
+            {([
+              { icon: UI_ICON.files, color: "var(--accent)", label: "New workspace", desc: "An empty workspace for a project — open a folder to start coding.", run: () => { void handleNewWorkspace(); } },
+              { icon: UI_ICON.scratch, color: "var(--agent-shell)", label: "New scratchpad", desc: "A project-less sandbox of throwaway scratch terminals. Right-click to add more.", run: () => window.dispatchEvent(new CustomEvent("codegrid:new-scratch-workspace")) },
+            ] as const).map((item) => (
+              <button
+                key={item.label}
+                onClick={() => { setWsMenuOpen(false); item.run(); }}
+                style={{
+                  display: "flex", alignItems: "flex-start", gap: 11, width: "100%",
+                  background: "transparent", border: "none", cursor: "pointer",
+                  padding: "9px 10px", borderRadius: 6, textAlign: "left",
+                  color: "var(--text-primary)", fontFamily: "var(--font-ui)",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              >
+                <span aria-hidden style={{ color: item.color, width: 16, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
+                  <item.icon size={15} weight="regular" />
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: 12.5, fontWeight: 600 }}>{item.label}</span>
+                  <span style={{ display: "block", color: "var(--text-secondary)", fontSize: 11, lineHeight: 1.45, marginTop: 2 }}>{item.desc}</span>
+                </span>
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
 
         {/* In side-panel mode the tab strip is gone, so surface a compact
             toggle here to pop the terminals drawer open/closed. */}

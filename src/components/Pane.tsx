@@ -70,14 +70,6 @@ export const Pane = memo(function Pane({ session, onClose, onDragStart }: PanePr
     [session.id, onClose],
   );
 
-  const handleMinimize = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      minimizePane(session.id);
-    },
-    [session.id, minimizePane],
-  );
-
   const handleDoubleClick = useCallback(() => {
     toggleMaximize(session.id);
   }, [session.id, toggleMaximize]);
@@ -338,7 +330,6 @@ export const Pane = memo(function Pane({ session, onClose, onDragStart }: PanePr
               </span>
             )}
           </HeaderBtn>
-          <HeaderBtn label="Minimize pane" onClick={handleMinimize} onDark={!isFocused}><UI_ICON.minimize size={14} /></HeaderBtn>
           <HeaderBtn label={isMaximized ? "Restore pane" : "Maximize pane"} onClick={(e) => { e.stopPropagation(); toggleMaximize(session.id); }} onDark={!isFocused}>
             {isMaximized ? <UI_ICON.restore size={13} /> : <UI_ICON.maximize size={13} />}
           </HeaderBtn>

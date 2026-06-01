@@ -87,6 +87,7 @@ impl PtyManager {
     pub fn spawn_session(
         &self,
         session_id: &str,
+        workspace_id: &str,
         working_dir: &str,
         command: &str,
         args: &[String],
@@ -109,6 +110,13 @@ impl PtyManager {
             cmd.arg(arg);
         }
         cmd.cwd(working_dir);
+
+        // Stamp the pane's identity into the environment so the Agent Bus MCP
+        // server — which runs as a child of the agent CLI in this PTY and so
+        // inherits this env — knows which workspace/session invoked it. This is
+        // what lets the bus scope discovery and messaging to a single workspace.
+        cmd.env("CODEGRID_SESSION_ID", session_id);
+        cmd.env("CODEGRID_WORKSPACE_ID", workspace_id);
 
         // Inherit environment
         #[cfg(unix)]
