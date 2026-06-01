@@ -1,8 +1,9 @@
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useSessionStore } from "../stores/sessionStore";
 import { UI_ICON, type Icon } from "../lib/icons";
+import { clampMenuPosition } from "../lib/menuPosition";
 import { TerminalManager } from "./TerminalManager";
 
 const UI_FONT = "var(--font-ui)";
@@ -22,8 +23,17 @@ export const CanvasControls = memo(function CanvasControls() {
 
   const [tmOpen, setTmOpen] = useState(false);
   const [newMenuOpen, setNewMenuOpen] = useState(false);
-  const [newAnchor, setNewAnchor] = useState<{ top: number; right: number } | null>(null);
+  const [newPos, setNewPos] = useState<{ top: number; left: number } | null>(null);
   const newBtnRef = useRef<HTMLButtonElement>(null);
+  const newPopRef = useRef<HTMLDivElement>(null);
+
+  // Keep the "+ New" menu fully on-screen (clamps/flips near a viewport edge).
+  useLayoutEffect(() => {
+    if (!newMenuOpen || !newBtnRef.current || !newPopRef.current) { setNewPos(null); return; }
+    const a = newBtnRef.current.getBoundingClientRect();
+    const m = newPopRef.current.getBoundingClientRect();
+    setNewPos(clampMenuPosition(a, { width: m.width, height: m.height }, { align: "right", gap: 6 }));
+  }, [newMenuOpen]);
 
   useEffect(() => {
     if (!newMenuOpen) return;
@@ -72,11 +82,7 @@ export const CanvasControls = memo(function CanvasControls() {
         <button
           ref={newBtnRef}
           data-new-btn
-          onClick={() => {
-            const r = newBtnRef.current?.getBoundingClientRect();
-            if (r) setNewAnchor({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
-            setNewMenuOpen((o) => !o);
-          }}
+          onClick={() => setNewMenuOpen((o) => !o)}
           title="New… (Cmd+N)"
           style={{
             display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5,
@@ -90,11 +96,13 @@ export const CanvasControls = memo(function CanvasControls() {
         </button>
       </div>
 
-      {newMenuOpen && newAnchor && createPortal(
+      {newMenuOpen && createPortal(
         <div
           data-new-menu
+          ref={newPopRef}
           style={{
-            position: "fixed", top: newAnchor.top, right: newAnchor.right, width: 360, maxWidth: "92vw",
+            position: "fixed", top: newPos?.top ?? -9999, left: newPos?.left ?? -9999,
+            visibility: newPos ? "visible" : "hidden", width: 360, maxWidth: "92vw",
             background: "var(--bg-secondary)", border: "1px solid var(--border-strong)",
             borderRadius: 8, boxShadow: "0 12px 32px rgba(0,0,0,0.6)", zIndex: 100000, padding: 6,
           }}

@@ -1,6 +1,7 @@
-import { memo, useState, useEffect, useRef, useCallback } from "react";
+import { memo, useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useResourceStore, SHELL_COST_MB, AGENT_COST_MB } from "../stores/resourceStore";
+import { clampMenuPosition } from "../lib/menuPosition";
 
 const MONO = "var(--font-ui)";
 
@@ -63,8 +64,15 @@ export const ResourceIndicator = memo(function ResourceIndicator() {
   const shellEstMb = shellCount * SHELL_COST_MB;
   const agentEstMb = agentCount * AGENT_COST_MB;
 
-  // Position popover below the button
-  const rect = btnRef.current?.getBoundingClientRect();
+  // Position the popover so it stays on-screen. The button lives in the bottom
+  // dock, so a naive "open below" runs off the bottom — clamp/flip instead.
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  useLayoutEffect(() => {
+    if (!open || !btnRef.current || !popRef.current) { setPos(null); return; }
+    const a = btnRef.current.getBoundingClientRect();
+    const m = popRef.current.getBoundingClientRect();
+    setPos(clampMenuPosition(a, { width: m.width, height: m.height }, { align: "right" }));
+  }, [open]);
 
   return (
     <>
@@ -97,13 +105,14 @@ export const ResourceIndicator = memo(function ResourceIndicator() {
         [{totalCount} {"\u25AA"} {formatGb(estimatedTerminalUsageMb)} / {formatGb(availableMemoryMb)}]
       </button>
 
-      {open && rect && createPortal(
+      {open && createPortal(
         <div
           ref={popRef}
           style={{
             position: "fixed",
-            top: rect.bottom + 4,
-            left: Math.max(8, rect.right - 280),
+            top: pos?.top ?? -9999,
+            left: pos?.left ?? -9999,
+            visibility: pos ? "visible" : "hidden",
             zIndex: 9999,
             width: "280px",
             background: "#141414",

@@ -124,7 +124,6 @@ export const Canvas = memo(function Canvas({ width, height, onCloseSession }: Ca
   const panOverlayRef = useRef<HTMLDivElement>(null);
   const hasMinimized = Object.keys(minimizedPanes).length > 0;
   const canvasHeight = height;
-  const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
   // Explicit pan-tool mode — toggled by the bottom-bar "Pan" button. When on, a
   // full-canvas overlay shows a grab cursor and captures drags to pan.
   const [panMode, setPanMode] = useState(false);
@@ -150,28 +149,6 @@ export const Canvas = memo(function Canvas({ width, height, onCloseSession }: Ca
     const layoutIds = new Set(visibleLayouts.map((l) => l.i));
     return sessions.filter((s) => layoutIds.has(s.id));
   }, [sessions, visibleLayouts]);
-
-  // Apply a layout preset and reset the view so every pane is visible.
-  const applyPresetLayout = useCallback((value: "auto" | "focus" | "columns" | "rows" | "grid") => {
-    const ids = visibleSessions.map((s) => s.id);
-    useLayoutStore.getState().applyPreset(value, ids, width, canvasHeight);
-    setCanvas({ zoom: 1, panX: 0, panY: 0 });
-    live.current.zoom = 1; live.current.panX = 0; live.current.panY = 0;
-    applySurfaceTransform(); applyBgTransform(); updateZoomLabel();
-    setLayoutMenuOpen(false);
-  }, [visibleSessions, width, canvasHeight, setCanvas]);
-
-  // Close the layout dropdown on outside click / Escape.
-  useEffect(() => {
-    if (!layoutMenuOpen) return;
-    const onDown = (e: MouseEvent) => {
-      if (!(e.target as HTMLElement).closest("[data-layout-menu]")) setLayoutMenuOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setLayoutMenuOpen(false); };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
-  }, [layoutMenuOpen]);
 
   // ── Direct DOM helpers (no React) ──
 
@@ -254,7 +231,9 @@ export const Canvas = memo(function Canvas({ width, height, onCloseSession }: Ca
       const target = e.target as HTMLElement | null;
       const insideTerminal =
         !!target && !!target.closest(".terminal-container, .xterm, .xterm-screen");
-      // Keep native terminal scrolling; zoom via Cmd/Ctrl+wheel or pinch-to-zoom when not hovering terminal content.
+      // Zoom works EVERYWHERE — including while hovering a terminal — via
+      // Cmd/Ctrl+wheel or pinch-to-zoom. Plain wheel over a terminal is left
+      // alone so the terminal can still scroll its own scrollback.
       if (insideTerminal && !e.metaKey && !e.ctrlKey) return;
       e.preventDefault();
       cancelMomentum();
@@ -310,8 +289,11 @@ export const Canvas = memo(function Canvas({ width, height, onCloseSession }: Ca
       applySurfaceTransform();
       applyBgTransform();
     };
-    vp.addEventListener("wheel", handler, { passive: false });
-    return () => vp.removeEventListener("wheel", handler);
+    // Capture phase: the canvas must see the wheel event before xterm (which
+    // sits inside a pane) can consume it — otherwise zoom gestures are swallowed
+    // whenever the cursor is over a terminal.
+    vp.addEventListener("wheel", handler, { passive: false, capture: true });
+    return () => vp.removeEventListener("wheel", handler, true);
   }, [maximizedPane]);
 
   // Commit zoom on debounced idle (so zustand updates after scrolling stops)
@@ -951,62 +933,6 @@ export const Canvas = memo(function Canvas({ width, height, onCloseSession }: Ca
           <AttentionBar />
           <ResourceIndicator />
           <span style={{ width: 1, height: 18, background: "var(--border-default)", margin: "0 2px" }} aria-hidden />
-          <button
-            onClick={() => applyPresetLayout("auto")}
-            title="Auto-arrange all terminals in an optimal grid"
-            style={{
-              background: "var(--text-accent)", border: "1px solid var(--text-accent)",
-              color: "#0a0a0a", padding: "3px 8px", cursor: "pointer", fontFamily: MONO,
-              fontSize: 12, fontWeight: "bold",
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.filter = "brightness(1.1)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.filter = "none"; }}
-          >
-            AUTO
-          </button>
-
-          {/* Layout menu \u2014 the less-used presets, collapsed into one dropdown */}
-          <div data-layout-menu style={{ position: "relative" }}>
-            <button
-              onClick={() => setLayoutMenuOpen((o) => !o)}
-              title="More layouts"
-              style={{
-                background: layoutMenuOpen ? "var(--bg-hover)" : "#1a1a1a",
-                border: "1px solid var(--border-default)", color: "var(--text-muted)",
-                padding: "3px 8px", cursor: "pointer", fontFamily: MONO, fontSize: 12,
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-accent)"; e.currentTarget.style.borderColor = "var(--text-accent)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; e.currentTarget.style.borderColor = "var(--border-default)"; }}
-            >
-              Layout
-            </button>
-            {layoutMenuOpen && (
-              <div
-                style={{
-                  position: "absolute", bottom: "calc(100% + 4px)", right: 0, minWidth: 140,
-                  background: "var(--bg-secondary)", border: "1px solid var(--border-strong)",
-                  boxShadow: "0 -6px 18px rgba(0,0,0,0.6)", zIndex: 130, padding: 4,
-                }}
-              >
-                {([
-                  { label: "Focus + sidebar", value: "focus" as const },
-                  { label: "Columns", value: "columns" as const },
-                  { label: "Rows", value: "rows" as const },
-                  { label: "Grid", value: "grid" as const },
-                ]).map((p) => (
-                  <div
-                    key={p.value}
-                    onClick={() => applyPresetLayout(p.value)}
-                    style={{ padding: "6px 8px", cursor: "pointer", color: "var(--text-secondary)", fontSize: 12 }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                  >
-                    {p.label}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
           <button
             onClick={() => setPanMode((v) => !v)}
             title={panMode ? "Pan mode ON — drag anywhere to move the canvas (Esc to exit)" : "Pan mode: drag the canvas without touching panes"}

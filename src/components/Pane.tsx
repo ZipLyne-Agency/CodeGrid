@@ -1,11 +1,14 @@
-import { memo, useCallback, useState, useRef, useEffect } from "react";
+import { memo, useCallback, useState, useRef, useEffect, useLayoutEffect } from "react";
 import { TerminalView } from "./Terminal";
+import { clampMenuPosition } from "../lib/menuPosition";
 import { StatusBar } from "./StatusBar";
 import { useSessionStore } from "../stores/sessionStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import type { SessionWithModel } from "../stores/sessionStore";
 import { detectAgent, statusTheme, hexToRgb } from "../lib/paneTheme";
 import { UI_ICON } from "../lib/icons";
+import { useHasTier } from "./Gated";
+import { useAppStore } from "../stores/appStore";
 
 const UI_FONT = "var(--font-ui)";
 
@@ -23,6 +26,8 @@ export const Pane = memo(function Pane({ session, onClose, onDragStart }: PanePr
   const toggleMaximize = useLayoutStore((s) => s.toggleMaximize);
   const minimizePane = useLayoutStore((s) => s.minimizePane);
   const maximizedPane = useLayoutStore((s) => s.maximizedPane);
+  const isPro = useHasTier(1);
+  const setProModalOpen = useAppStore((s) => s.setProModalOpen);
   const isFocused = focusedSessionId === session.id;
   const isMaximized = maximizedPane === session.id;
 
@@ -79,6 +84,7 @@ export const Pane = memo(function Pane({ session, onClose, onDragStart }: PanePr
 
   // Right-click context menu
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
+  const [ctxPos, setCtxPos] = useState<{ top: number; left: number } | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -100,6 +106,14 @@ export const Pane = memo(function Pane({ session, onClose, onDragStart }: PanePr
     document.addEventListener("mousedown", close);
     document.addEventListener("keydown", close);
     return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", close); };
+  }, [ctxMenu]);
+
+  // Keep the context menu on-screen when right-clicking near an edge/corner.
+  useLayoutEffect(() => {
+    if (!ctxMenu || !ctxMenuRef.current) { setCtxPos(null); return; }
+    const m = ctxMenuRef.current.getBoundingClientRect();
+    const point = { top: ctxMenu.y, bottom: ctxMenu.y, left: ctxMenu.x, right: ctxMenu.x };
+    setCtxPos(clampMenuPosition(point, { width: m.width, height: m.height }, { gap: 0 }));
   }, [ctxMenu]);
 
   const startRename = useCallback(() => {
@@ -126,6 +140,8 @@ export const Pane = memo(function Pane({ session, onClose, onDragStart }: PanePr
     async (e: React.MouseEvent) => {
       e.stopPropagation();
       if (naming) return;
+      // AI naming is a Pro feature — free users get the upgrade explainer instead.
+      if (!isPro) { setProModalOpen(true); return; }
       const { getTerminalSnapshot } = await import("../lib/terminalSnapshots");
       const text = getTerminalSnapshot(session.id);
       const { useToastStore } = await import("../stores/toastStore");
@@ -145,7 +161,7 @@ export const Pane = memo(function Pane({ session, onClose, onDragStart }: PanePr
         setNaming(false);
       }
     },
-    [naming, session.id, setSessionManualName],
+    [naming, isPro, setProModalOpen, session.id, setSessionManualName],
   );
 
   const handleRestart = useCallback(
@@ -268,17 +284,9 @@ export const Pane = memo(function Pane({ session, onClose, onDragStart }: PanePr
           >
             {session.pane_number}
           </span>
-          {/* Agent icon + label — icon carries identity for non-color readers */}
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
-            {(() => { const Glyph = agent.icon; return <Glyph size={14} weight={isFocused ? "fill" : "regular"} color={hc.glyph} style={{ flexShrink: 0 }} />; })()}
-            <span style={{ fontSize: 13, fontWeight: 700, color: hc.label, letterSpacing: 0.1 }}>{agent.label}</span>
-          </span>
-          {/* Status — glyph + word, not color-alone */}
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: hc.statusText, flexShrink: 0, fontSize: 12, fontWeight: 600 }}>
-            <span aria-hidden>{status.glyph}</span>
-            <span>{status.label}</span>
-          </span>
-          {/* Name */}
+          {/* Terminal name — the single title on the bar. Defaults to the agent
+              name (e.g. "Claude") until the user or AI renames it. Status, branch
+              and other metadata live in the bottom status bar, not up here. */}
           {renaming ? (
             <input
               ref={renameInputRef}
@@ -293,16 +301,17 @@ export const Pane = memo(function Pane({ session, onClose, onDragStart }: PanePr
               onClick={(e) => e.stopPropagation()}
               style={{
                 background: "rgba(0,0,0,0.6)", border: "1px solid rgba(0,0,0,0.8)", color: "#fff",
-                fontSize: 12, fontFamily: UI_FONT, padding: "2px 6px", outline: "none", width: 160,
+                fontSize: 13, fontFamily: UI_FONT, padding: "2px 6px", outline: "none", width: 180,
               }}
               autoFocus
             />
           ) : (
             <span
               style={{
-                color: hc.nameText,
-                fontSize: 12,
-                fontWeight: 500,
+                color: hc.label,
+                fontSize: 13,
+                fontWeight: 600,
+                letterSpacing: 0.1,
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
@@ -310,29 +319,24 @@ export const Pane = memo(function Pane({ session, onClose, onDragStart }: PanePr
               }}
               title={displayName}
             >
-              · {displayName}
-            </span>
-          )}
-          {/* Git branch chip — the branch this pane was started on (worktree-aware) */}
-          {session.git_branch && (
-            <span
-              title={`${session.git_branch}${session.worktree_path ? " (worktree)" : ""}`}
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 3,
-                color: hc.statusText, fontSize: 11, fontWeight: 600,
-                flexShrink: 0, overflow: "hidden", maxWidth: 130,
-              }}
-            >
-              <span aria-hidden style={{ display: "inline-flex", alignItems: "center" }}>{session.worktree_path ? <UI_ICON.worktree size={11} /> : <UI_ICON.git size={11} />}</span>
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {session.git_branch}
-              </span>
+              {displayName}
             </span>
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
-          <HeaderBtn label="Name this terminal with AI (Pro)" onClick={handleAiName} onDark={!isFocused}>
-            {naming ? "·" : <UI_ICON.ai size={13} weight="fill" />}
+          <HeaderBtn label={isPro ? "Name this terminal with AI" : "Name this terminal with AI — unlock with Pro"} onClick={handleAiName} onDark={!isFocused}>
+            {naming ? "·" : (
+              <span style={{ position: "relative", display: "inline-flex" }}>
+                <UI_ICON.ai size={13} weight="fill" />
+                {!isPro && (
+                  <UI_ICON.lock
+                    size={8}
+                    weight="fill"
+                    style={{ position: "absolute", right: -4, bottom: -3, color: "var(--accent, #ff8c00)" }}
+                  />
+                )}
+              </span>
+            )}
           </HeaderBtn>
           <HeaderBtn label="Minimize pane" onClick={handleMinimize} onDark={!isFocused}><UI_ICON.minimize size={14} /></HeaderBtn>
           <HeaderBtn label={isMaximized ? "Restore pane" : "Maximize pane"} onClick={(e) => { e.stopPropagation(); toggleMaximize(session.id); }} onDark={!isFocused}>
@@ -350,8 +354,9 @@ export const Pane = memo(function Pane({ session, onClose, onDragStart }: PanePr
           ref={ctxMenuRef}
           style={{
             position: "fixed",
-            top: ctxMenu.y,
-            left: ctxMenu.x,
+            top: ctxPos?.top ?? ctxMenu.y,
+            left: ctxPos?.left ?? ctxMenu.x,
+            visibility: ctxPos ? "visible" : "hidden",
             background: "var(--bg-secondary)",
             border: "1px solid var(--border-strong)",
             zIndex: 9999,

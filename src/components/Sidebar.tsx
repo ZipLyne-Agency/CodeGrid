@@ -1,4 +1,7 @@
-import { memo, useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { memo, useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
+import { clampMenuPosition } from "../lib/menuPosition";
+import { ProBadge } from "./ProBadge";
 import { useWorkspaceStore, type ActivityPanel } from "../stores/workspaceStore";
 import { useSessionStore } from "../stores/sessionStore";
 import { useAppStore } from "../stores/appStore";
@@ -112,6 +115,9 @@ const GitPanel = memo(function GitPanel({
   const [selectedCommitHash, setSelectedCommitHash] = useState<string | null>(null);
   const [selectedCommitDetail, setSelectedCommitDetail] = useState<string | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
+  const moreBtnRef = useRef<HTMLButtonElement>(null);
+  const morePopRef = useRef<HTMLDivElement>(null);
+  const [morePos, setMorePos] = useState<{ top: number; left: number } | null>(null);
   const branchDropdownRef = useRef<HTMLDivElement>(null);
   const moreRef = useRef<HTMLDivElement>(null);
 
@@ -147,14 +153,26 @@ const GitPanel = memo(function GitPanel({
     return () => document.removeEventListener("mousedown", handler);
   }, [branchDropdownOpen]);
 
-  // Close the "more actions" menu on outside click
+  // Close the "more actions" menu on outside click. The menu is portaled to
+  // <body> (so it can't be clipped by the sidebar), so treat both the trigger
+  // and the portaled menu as "inside".
   useEffect(() => {
     if (!moreOpen) return;
     const handler = (e: MouseEvent) => {
-      if (moreRef.current && !moreRef.current.contains(e.target as Node)) setMoreOpen(false);
+      const t = e.target as Node;
+      if (moreRef.current?.contains(t) || morePopRef.current?.contains(t)) return;
+      setMoreOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
+  }, [moreOpen]);
+
+  // Keep the portaled "more actions" menu on-screen.
+  useLayoutEffect(() => {
+    if (!moreOpen || !moreBtnRef.current || !morePopRef.current) { setMorePos(null); return; }
+    const a = moreBtnRef.current.getBoundingClientRect();
+    const m = morePopRef.current.getBoundingClientRect();
+    setMorePos(clampMenuPosition(a, { width: m.width, height: m.height }, { align: "left" }));
   }, [moreOpen]);
 
   const handleSwitchBranch = useCallback(async (name: string) => {
@@ -472,14 +490,16 @@ const GitPanel = memo(function GitPanel({
             )}
             <div ref={moreRef} style={{ position: "relative", flex: "0 0 auto" }}>
               <button
+                ref={moreBtnRef}
                 onClick={() => setMoreOpen((o) => !o)}
                 title="More git actions"
                 aria-label="More git actions"
                 style={{ ...gitMiniBtn("var(--border-strong)", "var(--text-secondary)"), padding: "4px 10px", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
               ><UI_ICON.more size={16} weight="bold" /></button>
-              {moreOpen && (
-                <div style={{
-                  position: "absolute", top: "calc(100% + 4px)", right: 0, minWidth: 170, zIndex: 200,
+              {moreOpen && createPortal(
+                <div ref={morePopRef} style={{
+                  position: "fixed", top: morePos?.top ?? -9999, left: morePos?.left ?? -9999,
+                  visibility: morePos ? "visible" : "hidden", minWidth: 170, zIndex: 100000,
                   background: "var(--bg-secondary)", border: "1px solid var(--border-strong)", borderRadius: 8,
                   boxShadow: "0 10px 28px rgba(0,0,0,0.6)", padding: 5,
                 }}>
@@ -499,7 +519,8 @@ const GitPanel = memo(function GitPanel({
                       onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                     >{item.label}</button>
                   ))}
-                </div>
+                </div>,
+                document.body,
               )}
             </div>
           </div>
@@ -771,7 +792,7 @@ const GitPanel = memo(function GitPanel({
                     }}
                     onMouseEnter={(e) => { if (!aiGenerating) e.currentTarget.style.borderColor = "var(--text-accent)"; }}
                     onMouseLeave={(e) => { e.currentTarget.style.borderColor = isPro ? "var(--accent-border)" : "var(--border-default)"; }}
-                  >{aiGenerating ? "\u2026" : <><UI_ICON.ai size={13} weight="fill" style={{ flexShrink: 0 }} /> AI</>}</button>
+                  >{aiGenerating ? "\u2026" : <><UI_ICON.ai size={13} weight="fill" style={{ flexShrink: 0 }} /> AI{!isPro && <ProBadge style={{ marginLeft: 2 }} />}</>}</button>
                 </div>
                 <div style={{ display: "flex", gap: "2px" }}>
                   <button
@@ -1171,6 +1192,7 @@ const SIDEBAR_WIDTH = 300;
 
 export const Sidebar = memo(function Sidebar() {
   const { workspaces, activeWorkspaceId, sidebarOpen, activePanel, setActivePanel } = useWorkspaceStore();
+  const isPro = useHasTier(1);
   const sessions = useSessionStore((s) => s.sessions);
   const [workspaceGitStatus, setWorkspaceGitStatus] = useState<GitStatusInfo | null>(null);
 
@@ -1296,6 +1318,13 @@ export const Sidebar = memo(function Sidebar() {
               >
                 <ItemIcon size={18} weight={isActive ? "fill" : "regular"} />
                 <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: 0.2 }}>{item.label}</span>
+                {item.id === "analytics" && !isPro && (
+                  <UI_ICON.lock
+                    size={9}
+                    weight="fill"
+                    style={{ position: "absolute", top: 5, right: "50%", marginRight: -16, color: "var(--accent, #ff8c00)" }}
+                  />
+                )}
                 {badge > 0 && (
                   <span style={{
                     position: "absolute", top: 4, right: "50%", marginRight: -18,
