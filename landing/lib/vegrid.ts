@@ -126,6 +126,14 @@ export const VEGRID_ABI = [
     outputs: [{name: "", type: "uint256"}],
   },
   {
+    // Combined active stake of every user — the protocol-wide total.
+    type: "function",
+    name: "totalStaked",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{name: "", type: "uint256"}],
+  },
+  {
     type: "function",
     name: "tierOf",
     stateMutability: "view",

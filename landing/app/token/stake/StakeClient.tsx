@@ -158,6 +158,8 @@ interface ChainData {
   staked: bigint;
   unbonding: bigint;
   stakedNum: number;
+  /** Protocol-wide total staked across all users (GRID), or null until loaded. */
+  totalStakedNum: number | null;
   cooldownPeriod: number;
   unbondingEnd: number;
   wrongNetwork: boolean;
@@ -193,6 +195,16 @@ export function StakeClient() {
       : [],
     query: {enabled: !!address, refetchInterval: 20_000},
   });
+
+  // Protocol-wide total staked — read globally (no wallet needed) so it shows
+  // to every visitor, connected or not. Auto-refreshes after any stake/unstake.
+  const {data: globalData} = useReadContracts({
+    contracts: [
+      {address: VEGRID_ADDRESS, abi: VEGRID_ABI, functionName: "totalStaked"},
+    ],
+    query: {refetchInterval: 20_000},
+  });
+  const totalStaked = globalData?.[0]?.result as bigint | undefined;
 
   // Live "last sync" / status-bar timer.
   useEffect(() => {
@@ -250,6 +262,7 @@ export function StakeClient() {
     staked,
     unbonding,
     stakedNum: Number(formatUnits(staked, 18)),
+    totalStakedNum: totalStaked != null ? Number(formatUnits(totalStaked, 18)) : null,
     cooldownPeriod: Number(pos?.[2] ?? 0n),
     unbondingEnd: Number(pos?.[3] ?? 0n),
     wrongNetwork,
@@ -519,12 +532,35 @@ function NetworkBanner({d}: {d: ChainData}) {
 /*  Views                                                              */
 /* ================================================================== */
 
+/** Protocol-wide total staked — shown to everyone, connected or not. */
+function TotalStakedBox({d}: {d: ChainData}) {
+  return (
+    <AsciiBox title="network">
+      <div className="flex items-baseline justify-between font-mono text-[13px]">
+        <span className="text-text-secondary">total $GRID staked</span>
+        <span className="text-accent tabular-nums">
+          {d.totalStakedNum != null ? <CountUp value={d.totalStakedNum} /> : "…"}{" "}
+          <span className="text-text-secondary">GRID</span>
+        </span>
+      </div>
+    </AsciiBox>
+  );
+}
+
 function StatusView({d, go}: {d: ChainData; go: (v: ViewId) => void}) {
-  if (!d.connected) return <ConnectGate />;
+  if (!d.connected) {
+    return (
+      <div className="space-y-5 pt-6">
+        <TotalStakedBox d={d} />
+        <ConnectGate />
+      </div>
+    );
+  }
   const remaining = Math.max(0, PRO.threshold - d.powerNum);
   return (
     <div className="space-y-5 pt-6">
       <NetworkBanner d={d} />
+      <TotalStakedBox d={d} />
 
       <AsciiBox title="access status">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-1.5 gap-x-8 font-mono text-[13px]">
