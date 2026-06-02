@@ -616,16 +616,74 @@ pub async fn git_diff_stat(working_dir: String) -> Result<String, String> {
 #[tauri::command]
 pub async fn get_active_diff(working_dir: String) -> Result<String, String> {
     let dir = validate_dir(&working_dir)?;
-    match run_git(&dir, &["diff", "HEAD"]) {
-        Ok(d) if !d.trim().is_empty() => Ok(d),
-        Ok(_) => run_git(&dir, &["diff", "--cached"]),
+
+    // A non-repo would otherwise fall through to "no changes", which is
+    // misleading — say so plainly instead.
+    let is_repo = run_git(&dir, &["rev-parse", "--is-inside-work-tree"])
+        .map(|s| s.trim() == "true")
+        .unwrap_or(false);
+    if !is_repo {
+        return Err("This folder isn't a git repository, so there's nothing to review.".to_string());
+    }
+
+    // Tracked edits vs HEAD (covers both staged and unstaged changes to files
+    // git already knows about).
+    let tracked = match run_git(&dir, &["diff", "HEAD"]) {
+        Ok(d) => d,
         Err(_) => {
             // No commits yet (HEAD doesn't resolve): combine staged + unstaged.
             let staged = run_git(&dir, &["diff", "--cached"]).unwrap_or_default();
             let unstaged = run_git(&dir, &["diff"]).unwrap_or_default();
-            Ok(format!("{staged}\n{unstaged}").trim().to_string())
+            format!("{staged}\n{unstaged}")
+        }
+    };
+
+    // Brand-new (untracked) files are invisible to `git diff HEAD`, so a review
+    // of fresh work would come back empty. Synthesize an add-diff for each.
+    let untracked = untracked_diff(&dir);
+
+    let combined = format!("{}\n{}", tracked.trim(), untracked.trim());
+    Ok(combined.trim().to_string())
+}
+
+/// Run git and return stdout regardless of exit status. Some porcelain (notably
+/// `diff --no-index`) exits non-zero precisely when there *is* a difference, so
+/// `run_git`'s success check would discard exactly the output we want.
+fn run_git_capture(dir: &str, args: &[&str]) -> String {
+    let env = shell_env();
+    std::process::Command::new("git")
+        .args(args)
+        .current_dir(dir)
+        .envs(&env)
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("GIT_ASKPASS", "/bin/false")
+        .env("GIT_OPTIONAL_LOCKS", "0")
+        .env("GIT_LITERAL_PATHSPECS", "1")
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+        .unwrap_or_default()
+}
+
+/// A unified diff that presents every untracked-but-not-ignored file as a new
+/// file addition, so code review sees newly-created work. Bounded by file count
+/// and total bytes so a folder full of fresh files can't produce a huge payload.
+fn untracked_diff(dir: &str) -> String {
+    const MAX_FILES: usize = 60;
+    const MAX_BYTES: usize = 200_000;
+    let list = run_git(dir, &["ls-files", "--others", "--exclude-standard"]).unwrap_or_default();
+    let mut out = String::new();
+    for f in list.lines().map(str::trim).filter(|l| !l.is_empty()).take(MAX_FILES) {
+        if out.len() >= MAX_BYTES {
+            break;
+        }
+        // Diff against /dev/null → the file renders as an added file.
+        let d = run_git_capture(dir, &["diff", "--no-index", "/dev/null", f]);
+        out.push_str(&d);
+        if !d.ends_with('\n') {
+            out.push('\n');
         }
     }
+    out
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

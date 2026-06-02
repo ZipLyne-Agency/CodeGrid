@@ -316,8 +316,10 @@ export const Pane = memo(function Pane({ session, onClose, onDragStart }: PanePr
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
-          <HeaderBtn label={isPro ? "Name this terminal with AI" : "Name this terminal with AI — unlock with Pro"} onClick={handleAiName} onDark={!isFocused}>
-            {naming ? "·" : (
+          <HeaderBtn label={naming ? "Naming this terminal with AI…" : isPro ? "Name this terminal with AI" : "Name this terminal with AI — unlock with Pro"} onClick={handleAiName} onDark={!isFocused}>
+            {naming ? (
+              <span className="cg-spinner" aria-label="Naming…" style={{ width: 12, height: 12 }} />
+            ) : (
               <span style={{ position: "relative", display: "inline-flex" }}>
                 <UI_ICON.ai size={13} weight="fill" />
                 {!isPro && (

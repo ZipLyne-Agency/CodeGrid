@@ -28,7 +28,7 @@ export const CommandPalette = memo(function CommandPalette() {
   const sessions = useSessionStore((s) => s.sessions);
   const { setFocusedSession, toggleBroadcast, focusedSessionId } = useSessionStore();
   const { applyPreset, toggleMaximize, addPaneLayout } = useLayoutStore();
-  const { setSkillsPanelOpen, setHubBrowserOpen, setGitManagerOpen, setMcpManagerOpen, setDependencyGraphOpen, skills } = useAppStore();
+  const { setSkillsPanelOpen, setHubBrowserOpen, setGitManagerOpen, setMcpManagerOpen, setDependencyGraphOpen, setReviewPanelOpen, skills } = useAppStore();
   const addToast = useToastStore((s) => s.addToast);
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -167,8 +167,39 @@ export const CommandPalette = memo(function CommandPalette() {
       },
     );
 
+    // Resolve the repo dir for AI git actions: focused session → active
+    // workspace repo → first session in the workspace.
+    const aiGitDir = () => {
+      const focused = activeSessions.find((s) => s.id === focusedSessionId);
+      const ws = workspaces.find((w) => w.id === activeWorkspaceId);
+      return focused?.working_dir ?? ws?.repo_path ?? activeSessions[0]?.working_dir;
+    };
+
     // --- Tools ---
     items.push(
+      {
+        id: "ai-code-review",
+        label: "AI Code Review (uncommitted changes)",
+        category: "Tools",
+        action: () => {
+          const dir = aiGitDir();
+          setCommandPaletteOpen(false);
+          if (dir) setReviewPanelOpen(true, dir);
+          else addToast("Open a project to review.", "warning");
+        },
+      },
+      {
+        id: "ai-commit-message",
+        label: "Generate AI commit message",
+        category: "Tools",
+        action: () => {
+          const dir = aiGitDir();
+          setCommandPaletteOpen(false);
+          if (!dir) { addToast("Open a project first.", "warning"); return; }
+          // The commit form lives in the Git panel; ask it to open + generate.
+          window.dispatchEvent(new CustomEvent("codegrid:ai-commit-message", { detail: { dir } }));
+        },
+      },
       {
         id: "open-hub",
         label: "Hub",
@@ -309,7 +340,7 @@ export const CommandPalette = memo(function CommandPalette() {
     }
 
     return items;
-  }, [activeSessions, focusedSessionId, skills, setCommandPaletteOpen, setNewSessionDialogOpen, toggleSidebar, toggleBroadcast, setHubBrowserOpen, setSkillsPanelOpen, setSettingsOpen, setGitManagerOpen, setMcpManagerOpen, setDependencyGraphOpen, setFocusedSession, applyPreset, toggleMaximize, addToast, workspaces, activeWorkspaceId, setActiveWorkspaceLocal, addSession, addPaneLayout]);
+  }, [activeSessions, focusedSessionId, skills, setCommandPaletteOpen, setNewSessionDialogOpen, toggleSidebar, toggleBroadcast, setHubBrowserOpen, setSkillsPanelOpen, setSettingsOpen, setGitManagerOpen, setMcpManagerOpen, setDependencyGraphOpen, setReviewPanelOpen, setFocusedSession, applyPreset, toggleMaximize, addToast, workspaces, activeWorkspaceId, setActiveWorkspaceLocal, addSession, addPaneLayout]);
 
   const filtered = useMemo(() => {
     if (!query) return commands;

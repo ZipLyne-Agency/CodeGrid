@@ -1,4 +1,5 @@
 import { memo, useState, useCallback } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useSessionStore } from "../stores/sessionStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useToastStore } from "../stores/toastStore";
@@ -8,6 +9,15 @@ import { UI_ICON } from "../lib/icons";
 import { jumpToSession } from "../lib/jumpToSession";
 
 const MONO = "var(--font-code)";
+
+/** A ready-to-paste prompt that teaches an agent how to drive the bus. */
+const STARTER_PROMPT =
+  "Use the codegrid-agent-bus MCP to coordinate with the other agents running in this workspace. " +
+  "First call list_agents to see who's available and get their session_id. " +
+  "Before messaging one, call read_pane on it to see its recent state, then message_agent to send a clear, self-contained request. " +
+  "Wait a few seconds, then read_pane again to get its reply. " +
+  "Follow the protocol: read → message once → wait → read. " +
+  "For example, ask another agent to review the file I'm working on and report back what it would change.";
 
 /**
  * Agent Bus panel — explains the multi-agent bus, lets the user install/configure
@@ -37,6 +47,12 @@ export const AgentBusPanel = memo(function AgentBusPanel() {
       addToast(`Agent Bus setup failed: ${e}`, "error", 8000);
     }
     setInstalling(false);
+  }, [addToast]);
+
+  const copyStarter = useCallback(() => {
+    invoke("clipboard_write", { text: STARTER_PROMPT })
+      .then(() => addToast("Starter prompt copied — paste it into any agent.", "success"))
+      .catch(() => addToast("Could not copy the prompt.", "error"));
   }, [addToast]);
 
   return (
@@ -93,6 +109,37 @@ export const AgentBusPanel = memo(function AgentBusPanel() {
         </div>
         <div style={{ color: "var(--text-faint)", fontSize: 10, marginTop: 8, fontFamily: MONO }}>
           docs: codegrid.app/agent-bus
+        </div>
+      </div>
+
+      {/* Starter prompt — copy and paste into any agent to kick off the bus. */}
+      <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border-default)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <div className="cg-caps" style={{ color: "var(--text-faint)", fontSize: 10 }}>Starter prompt</div>
+          <button
+            onClick={copyStarter}
+            className="cg-focus-ring"
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 5,
+              background: "var(--accent-soft)", border: "1px solid var(--accent-border)",
+              color: "var(--text-accent)", fontSize: 11, fontWeight: 700, fontFamily: "var(--font-ui)",
+              padding: "3px 9px", borderRadius: 6, cursor: "pointer",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--text-accent)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--accent-border)"; }}
+          ><UI_ICON.sameAgent size={12} weight="regular" /> Copy</button>
+        </div>
+        <div
+          onClick={copyStarter}
+          title="Click to copy"
+          style={{
+            color: "var(--text-secondary)", fontSize: 11, lineHeight: 1.5, fontFamily: MONO,
+            background: "var(--bg-primary)", border: "1px solid var(--border-default)",
+            borderRadius: 6, padding: "8px 10px", cursor: "pointer",
+            maxHeight: 110, overflow: "hidden", position: "relative",
+          }}
+        >
+          {STARTER_PROMPT}
         </div>
       </div>
 

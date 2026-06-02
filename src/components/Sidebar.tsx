@@ -6,6 +6,9 @@ import { useWorkspaceStore, type ActivityPanel } from "../stores/workspaceStore"
 import { useSessionStore } from "../stores/sessionStore";
 import { useAppStore } from "../stores/appStore";
 import { useToastStore } from "../stores/toastStore";
+import { useReviewStore } from "../stores/reviewStore";
+import { open as openExternal } from "@tauri-apps/plugin-shell";
+import { invoke } from "@tauri-apps/api/core";
 import {
   gitStatus, gitPush, gitPull, gitStageFile, gitUnstageFile, gitCommit,
   gitDiffStat, quickPublish, quickSave, generateCommitMessage,
@@ -82,6 +85,150 @@ function gitMiniBtn(borderColor: string, textColor: string): React.CSSProperties
   };
 }
 
+/** Best-effort web URL for a commit from a git remote (GitHub/GitLab/Bitbucket). */
+function commitUrl(remoteUrl: string | undefined, hash: string): string | null {
+  if (!remoteUrl) return null;
+  let host = "", path = "";
+  const raw = remoteUrl.trim().replace(/^git\+/, "");
+  const scp = raw.match(/^[a-zA-Z0-9_.-]+@([^:]+):(.+)$/); // git@host:owner/repo.git
+  if (scp) {
+    host = scp[1];
+    path = scp[2];
+  } else {
+    try {
+      const u = new URL(raw);
+      host = u.host;
+      path = u.pathname.replace(/^\//, "");
+    } catch {
+      return null;
+    }
+  }
+  path = path.replace(/\.git$/, "");
+  if (!host || !path) return null;
+  if (/gitlab\./i.test(host)) return `https://${host}/${path}/-/commit/${hash}`;
+  if (/bitbucket\./i.test(host)) return `https://${host}/${path}/commits/${hash}`;
+  return `https://${host}/${path}/commit/${hash}`; // github + generic
+}
+
+function PopBtn({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        background: "transparent", border: "1px solid var(--border-default)",
+        color: "var(--text-secondary)", fontSize: 11, fontFamily: "var(--font-ui)",
+        padding: "3px 8px", borderRadius: 5, cursor: "pointer", whiteSpace: "nowrap",
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--text-accent)"; e.currentTarget.style.color = "var(--text-accent)"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-default)"; e.currentTarget.style.color = "var(--text-secondary)"; }}
+    >{children}</button>
+  );
+}
+
+/**
+ * A commit row in HISTORY. The diff/details are no longer shown inline on click —
+ * instead, hovering the row reveals a pop-out with the message, author, a link
+ * to the commit on the remote, copy actions, and an on-demand diff.
+ */
+const CommitRow = memo(function CommitRow({
+  entry, dir, remoteUrl, hasRemote, addToast,
+}: {
+  entry: GitLogEntry;
+  dir: string | null;
+  remoteUrl: string | undefined;
+  hasRemote: boolean;
+  addToast: (m: string, t?: "success" | "error" | "info" | "warning", d?: number) => void;
+}) {
+  const rowRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [detail, setDetail] = useState<string | null>(null);
+  const [showDiff, setShowDiff] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ghUrl = hasRemote ? commitUrl(remoteUrl, entry.hash) : null;
+
+  const openPop = useCallback(() => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    const r = rowRef.current?.getBoundingClientRect();
+    if (r) setPos(clampMenuPosition({ top: r.top, bottom: r.bottom, left: r.left, right: r.right }, { width: 320, height: 260 }, { align: "left" }));
+    setOpen(true);
+  }, []);
+  const scheduleClose = useCallback(() => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    closeTimer.current = setTimeout(() => { setOpen(false); setShowDiff(false); }, 150);
+  }, []);
+  useEffect(() => () => { if (closeTimer.current) clearTimeout(closeTimer.current); }, []);
+
+  const loadDiff = useCallback(async () => {
+    setShowDiff(true);
+    if (detail != null || !dir) return;
+    try {
+      setDetail(await gitShowCommit(dir, entry.hash));
+    } catch (e) {
+      setDetail(`Error loading commit: ${e}`);
+    }
+  }, [detail, dir, entry.hash]);
+
+  const copy = useCallback((text: string, what: string) => {
+    invoke("clipboard_write", { text }).then(() => addToast(`${what} copied`, "success", 2500)).catch(() => {});
+  }, [addToast]);
+
+  return (
+    <>
+      <div
+        ref={rowRef}
+        onMouseEnter={(e) => { e.currentTarget.style.background = "#1a1a1a"; openPop(); }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; scheduleClose(); }}
+        style={{ padding: "4px 12px", display: "flex", alignItems: "center", gap: "6px", borderBottom: "1px solid #1a1a1a", cursor: "default" }}
+      >
+        <span style={{ color: "var(--text-accent)", fontSize: 11, fontWeight: "bold", flexShrink: 0, fontFamily: "var(--font-ui)" }}>
+          {entry.short_hash}
+        </span>
+        <span style={{ color: "#cccccc", fontSize: 12, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {entry.message}
+        </span>
+        <span style={{ color: "var(--border-strong)", fontSize: 11, flexShrink: 0 }}>{entry.date}</span>
+      </div>
+      {open && pos && createPortal(
+        <div
+          onMouseEnter={openPop}
+          onMouseLeave={scheduleClose}
+          style={{
+            position: "fixed", top: pos.top, left: pos.left, zIndex: 100000,
+            width: 320, maxWidth: "92vw", background: "var(--bg-secondary)",
+            border: "1px solid var(--border-strong)", borderRadius: 8,
+            boxShadow: "0 12px 32px rgba(0,0,0,0.6)", padding: 10, fontFamily: "var(--font-ui)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
+            <span style={{ color: "var(--text-accent)", fontWeight: 700, fontSize: 12, fontFamily: "var(--font-ui)" }}>{entry.short_hash}</span>
+            <span style={{ color: "var(--text-faint)", fontSize: 11 }}>{entry.date}</span>
+          </div>
+          <div style={{ color: "var(--text-primary)", fontSize: 12, marginBottom: 5, lineHeight: 1.45 }}>{entry.message}</div>
+          <div style={{ color: "var(--text-muted)", fontSize: 11, marginBottom: 9 }}>by {entry.author}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: showDiff ? 9 : 0 }}>
+            {ghUrl && <PopBtn onClick={() => openExternal(ghUrl)}>View on remote ↗</PopBtn>}
+            <PopBtn onClick={() => copy(entry.hash, "Commit hash")}>Copy hash</PopBtn>
+            <PopBtn onClick={() => copy(entry.message, "Message")}>Copy message</PopBtn>
+            {!showDiff && <PopBtn onClick={loadDiff}>Show diff</PopBtn>}
+          </div>
+          {showDiff && (
+            <pre style={{
+              margin: 0, maxHeight: 260, overflow: "auto", padding: 6,
+              background: "#0d0d0d", border: "1px solid var(--border-default)",
+              color: "#9a9a9a", fontSize: 11, lineHeight: 1.45,
+              whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "var(--font-ui)",
+            }}>
+              {detail ?? "Loading commit details…"}
+            </pre>
+          )}
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+});
+
 const GitPanel = memo(function GitPanel({
   workspaceGitStatus,
   activeWorkspace,
@@ -93,8 +240,9 @@ const GitPanel = memo(function GitPanel({
   activeSessions: { working_dir: string }[];
   onRefreshGit: () => void;
 }) {
-  const { setGitSetupWizardOpen, setCodeViewerOpen } = useAppStore();
+  const { setGitSetupWizardOpen, setCodeViewerOpen, setReviewPanelOpen } = useAppStore();
   const addToast = useToastStore((s) => s.addToast);
+  const reviews = useReviewStore((s) => s.reviews);
   const [pushLoading, setPushLoading] = useState(false);
   const [pullLoading, setPullLoading] = useState(false);
   const [commitFormOpen, setCommitFormOpen] = useState(false);
@@ -112,8 +260,6 @@ const GitPanel = memo(function GitPanel({
   const [newBranchName, setNewBranchName] = useState("");
   const [branchSwitching, setBranchSwitching] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(true);
-  const [selectedCommitHash, setSelectedCommitHash] = useState<string | null>(null);
-  const [selectedCommitDetail, setSelectedCommitDetail] = useState<string | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreBtnRef = useRef<HTMLButtonElement>(null);
   const morePopRef = useRef<HTMLDivElement>(null);
@@ -320,6 +466,17 @@ const GitPanel = memo(function GitPanel({
     }
   }, [dir, workspaceGitStatus, isPro, buildHeuristicMessage, addToast]);
 
+  // ⌘K "Generate AI commit message" dispatches this — open the commit form and
+  // fill it in, so the feature is reachable without first hunting for the form.
+  useEffect(() => {
+    const onGenerate = () => {
+      setCommitFormOpen(true);
+      void handleGenerateCommitMessage();
+    };
+    window.addEventListener("codegrid:ai-commit-message", onGenerate);
+    return () => window.removeEventListener("codegrid:ai-commit-message", onGenerate);
+  }, [handleGenerateCommitMessage]);
+
   const handlePublish = useCallback(async () => {
     if (!dir || publishLoading) return;
     if (!workspaceGitStatus?.has_remote) {
@@ -439,7 +596,8 @@ const GitPanel = memo(function GitPanel({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-      {/* Compact action bar \u2014 primary publish + a small secondary row */}
+      {/* Compact action bar: COMMIT & PUSH + AI commit-message wand, then the
+          AI CODE REVIEW row with a "more git actions" dropdown. */}
       <div style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: "5px", borderBottom: "1px solid var(--border-default)" }}>
         {!hasRemote ? (
           <button
@@ -458,44 +616,67 @@ const GitPanel = memo(function GitPanel({
             {"\u2713 NO CHANGES"}
           </button>
         ) : (
-          <button
-            onClick={handlePublish}
-            disabled={publishLoading}
-            style={{ width: "100%", padding: "7px 12px", background: publishLoading ? "#cc7000" : "var(--text-accent)", border: "none", color: "var(--bg-primary)", fontSize: 12, fontWeight: "bold", fontFamily: "var(--font-ui)", cursor: publishLoading ? "wait" : "pointer", borderRadius: 6 }}
-            onMouseEnter={(e) => { if (!publishLoading) e.currentTarget.style.background = "#ffa333"; }}
-            onMouseLeave={(e) => { if (!publishLoading) e.currentTarget.style.background = "var(--text-accent)"; }}
-          >
-            {publishLoading ? "\u2191 PUBLISHING..." : `\u2191 COMMIT & PUSH (${totalChanges})`}
-          </button>
+          /* Row 1: Commit & Push (primary) with the AI commit-message wand beside it. */
+          <div style={{ display: "flex", gap: "4px", alignItems: "stretch" }}>
+            <button
+              onClick={handlePublish}
+              disabled={publishLoading}
+              style={{ flex: 1, padding: "7px 12px", background: publishLoading ? "#cc7000" : "var(--text-accent)", border: "none", color: "var(--bg-primary)", fontSize: 12, fontWeight: "bold", fontFamily: "var(--font-ui)", cursor: publishLoading ? "wait" : "pointer", borderRadius: 6 }}
+              onMouseEnter={(e) => { if (!publishLoading) e.currentTarget.style.background = "#ffa333"; }}
+              onMouseLeave={(e) => { if (!publishLoading) e.currentTarget.style.background = "var(--text-accent)"; }}
+            >
+              {publishLoading ? "\u2191 PUBLISHING..." : `\u2191 COMMIT & PUSH (${totalChanges})`}
+            </button>
+            <button
+              onClick={() => { setCommitFormOpen(true); void handleGenerateCommitMessage(); }}
+              disabled={aiGenerating}
+              title={isPro ? "Write a commit message with AI (Pro)" : "Generate a commit message \u2014 upgrade to Pro for AI-written ones"}
+              aria-label="Generate commit message with AI"
+              style={{
+                flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4,
+                padding: "0 11px", borderRadius: 6, cursor: aiGenerating ? "wait" : "pointer",
+                background: "var(--accent-soft)", border: "1px solid var(--accent-border)",
+                color: aiGenerating ? "var(--text-faint)" : "var(--text-accent)", fontFamily: "var(--font-ui)",
+              }}
+              onMouseEnter={(e) => { if (!aiGenerating) e.currentTarget.style.borderColor = "var(--text-accent)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--accent-border)"; }}
+            >{aiGenerating ? <span className="cg-spinner" style={{ width: 12, height: 12 }} /> : <><UI_ICON.ai size={15} weight="fill" style={{ flexShrink: 0 }} />{!isPro && <ProBadge style={{ marginLeft: 1 }} />}</>}</button>
+          </div>
         )}
 
-        {/* Secondary compact row: Review \u00b7 Commit only \u00b7 \u22ef more */}
+        {/* Row 2: AI CODE REVIEW (background, with history) + more-git-actions menu. */}
         {(totalChanges > 0 || hasRemote) && (
           <div style={{ display: "flex", gap: "4px", alignItems: "stretch" }}>
-            {totalChanges > 0 && (
-              <button
-                onClick={() => {
-                  const first = workspaceGitStatus.staged[0]?.path ?? workspaceGitStatus.unstaged[0]?.path ?? workspaceGitStatus.untracked[0];
-                  if (first) openDiffReview(first);
-                }}
-                style={gitMiniBtn("#4a9eff66", "var(--status-idle)")}
-              >Review</button>
-            )}
-            {totalChanges > 0 && (
-              <button
-                onClick={handleSave}
-                disabled={saveLoading}
-                style={gitMiniBtn("#ff8c0066", saveLoading ? "var(--text-faint)" : "var(--text-accent)")}
-              >{saveLoading ? "\u2026" : "Commit only"}</button>
-            )}
-            <div ref={moreRef} style={{ position: "relative", flex: "0 0 auto" }}>
+            {totalChanges > 0 && (() => {
+              const reviewRunning = reviews.some((r) => r.dir === dir && r.status === "running");
+              return (
+                <button
+                  onClick={() => { if (dir) setReviewPanelOpen(true, dir); }}
+                  title={reviewRunning ? "Review running \u2014 click to view" : "AI code review of all your uncommitted changes (Pro)"}
+                  style={{
+                    flex: 1, padding: "6px 12px", display: "inline-flex",
+                    alignItems: "center", justifyContent: "center", gap: 6,
+                    background: "var(--accent-soft)", border: "1px solid var(--accent-border)",
+                    color: "var(--text-accent)", fontSize: 11.5, fontWeight: "bold",
+                    fontFamily: "var(--font-ui)", cursor: "pointer", borderRadius: 6,
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--text-accent)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--accent-border)"; }}
+                >
+                  {reviewRunning
+                    ? <><span className="cg-spinner" style={{ width: 12, height: 12 }} /> REVIEWING\u2026</>
+                    : <><UI_ICON.ai size={13} weight="fill" style={{ flexShrink: 0 }} /> AI CODE REVIEW</>}
+                </button>
+              );
+            })()}
+            <div ref={moreRef} style={{ position: "relative", flex: totalChanges > 0 ? "0 0 auto" : 1 }}>
               <button
                 ref={moreBtnRef}
                 onClick={() => setMoreOpen((o) => !o)}
                 title="More git actions"
                 aria-label="More git actions"
-                style={{ ...gitMiniBtn("var(--border-strong)", "var(--text-secondary)"), padding: "4px 10px", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
-              ><UI_ICON.more size={16} weight="bold" /></button>
+                style={{ ...gitMiniBtn("var(--border-strong)", "var(--text-secondary)"), padding: "4px 10px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5 }}
+              >{totalChanges > 0 ? <UI_ICON.more size={16} weight="bold" /> : <><UI_ICON.more size={15} weight="bold" /> Git actions</>}</button>
               {moreOpen && createPortal(
                 <div ref={morePopRef} style={{
                   position: "fixed", top: morePos?.top ?? -9999, left: morePos?.left ?? -9999,
@@ -504,6 +685,8 @@ const GitPanel = memo(function GitPanel({
                   boxShadow: "0 10px 28px rgba(0,0,0,0.6)", padding: 5,
                 }}>
                   {[
+                    { label: "Open diff viewer", color: "var(--status-idle)", show: totalChanges > 0, run: () => { const first = workspaceGitStatus.staged[0]?.path ?? workspaceGitStatus.unstaged[0]?.path ?? workspaceGitStatus.untracked[0]; if (first) openDiffReview(first); } },
+                    { label: "Commit only (no push)", color: "var(--text-accent)", show: totalChanges > 0, run: handleSave },
                     { label: "Pull", color: "var(--status-idle)", show: hasRemote, run: handleQuickPull },
                     { label: "Push", color: "var(--status-running)", show: hasRemote, run: handleQuickPush },
                     { label: "Stage all", color: "var(--status-running)", show: totalChanges > 0, run: async () => { if (dir) { try { await gitStageAll(dir); addToast("All staged", "success"); onRefreshGit(); } catch (e) { addToast(`Stage all failed: ${e}`, "error"); } } } },
@@ -901,54 +1084,14 @@ const GitPanel = memo(function GitPanel({
             {logEntries.length === 0 ? (
               <div style={{ padding: "6px 12px", color: "var(--border-strong)", fontSize: 12 }}>No commits yet</div>
             ) : logEntries.map((entry) => (
-              <div
+              <CommitRow
                 key={entry.hash}
-                onClick={async () => {
-                  if (!dir) return;
-                  if (selectedCommitHash === entry.hash) {
-                    setSelectedCommitHash(null);
-                    setSelectedCommitDetail(null);
-                    return;
-                  }
-                  setSelectedCommitHash(entry.hash);
-                  setSelectedCommitDetail(null);
-                  try {
-                    const detail = await gitShowCommit(dir, entry.hash);
-                    setSelectedCommitDetail(detail);
-                  } catch (e) {
-                    setSelectedCommitDetail(`Error loading commit: ${e}`);
-                  }
-                }}
-                style={{ padding: "4px 12px", display: "flex", flexDirection: "column", gap: "4px", borderBottom: "1px solid #1a1a1a", cursor: "pointer" }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "#1a1a1a"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-              >
-                <div style={{ display: "flex", alignItems: "flex-start", gap: "6px" }}>
-                  <span style={{ color: "var(--text-accent)", fontSize: 11, fontWeight: "bold", flexShrink: 0, fontFamily: "var(--font-ui)" }}>
-                    {entry.short_hash}
-                  </span>
-                  <span style={{ color: "#cccccc", fontSize: 12, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {entry.message}
-                  </span>
-                  <span style={{ color: "var(--border-strong)", fontSize: 11, flexShrink: 0 }}>{entry.date}</span>
-                </div>
-                {selectedCommitHash === entry.hash && (
-                  <pre style={{
-                    margin: 0,
-                    padding: "6px",
-                    background: "#0d0d0d",
-                    border: "1px solid var(--border-default)",
-                    color: "#9a9a9a",
-                    fontSize: 11,
-                    lineHeight: 1.45,
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-word",
-                    fontFamily: "var(--font-ui)",
-                  }}>
-                    {selectedCommitDetail ?? "Loading commit details..."}
-                  </pre>
-                )}
-              </div>
+                entry={entry}
+                dir={dir}
+                remoteUrl={workspaceGitStatus.remote_url}
+                hasRemote={workspaceGitStatus.has_remote}
+                addToast={addToast}
+              />
             ))}
           </div>
         )}

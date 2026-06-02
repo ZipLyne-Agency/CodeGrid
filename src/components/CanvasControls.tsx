@@ -4,14 +4,14 @@ import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useSessionStore } from "../stores/sessionStore";
 import { UI_ICON, type Icon } from "../lib/icons";
 import { clampMenuPosition } from "../lib/menuPosition";
-import { TerminalManager } from "./TerminalManager";
 
 const UI_FONT = "var(--font-ui)";
 
 /**
- * Top-bar action cluster (top-right): "manage terminals", command palette, and
- * the single "+ New" creation menu. Rendered inline in the top bar — the canvas
- * itself stays clean (view controls + status live in the bottom bar).
+ * Top-bar action cluster (top-right): the "+ New" creation menu and the command
+ * palette. (Bulk terminal management now lives in the Panes drawer, so the old
+ * "manage terminals" button was removed.) Rendered inline in the top bar — the
+ * canvas itself stays clean (view controls + status live in the bottom bar).
  */
 export const CanvasControls = memo(function CanvasControls() {
   const setCommandPaletteOpen = useWorkspaceStore((s) => s.setCommandPaletteOpen);
@@ -21,7 +21,6 @@ export const CanvasControls = memo(function CanvasControls() {
   const sessions = useSessionStore((s) => s.sessions);
   const focusedSessionId = useSessionStore((s) => s.focusedSessionId);
 
-  const [tmOpen, setTmOpen] = useState(false);
   const [newMenuOpen, setNewMenuOpen] = useState(false);
   const [newPos, setNewPos] = useState<{ top: number; left: number } | null>(null);
   const newBtnRef = useRef<HTMLButtonElement>(null);
@@ -77,8 +76,6 @@ export const CanvasControls = memo(function CanvasControls() {
           fontFamily: UI_FONT,
         }}
       >
-        <IconBtn icon={UI_ICON.manageTerminals} title="Manage all terminals" onClick={() => setTmOpen(true)} />
-        <IconBtn icon={UI_ICON.command} title="Command Palette (Cmd+K)" onClick={() => setCommandPaletteOpen(true)} />
         <button
           ref={newBtnRef}
           data-new-btn
@@ -94,6 +91,7 @@ export const CanvasControls = memo(function CanvasControls() {
         >
           + New <UI_ICON.caretDown size={11} weight="regular" style={{ flexShrink: 0 }} />
         </button>
+        <IconBtn icon={UI_ICON.command} title="Command Palette (Cmd+K)" onClick={() => setCommandPaletteOpen(true)} />
       </div>
 
       {newMenuOpen && createPortal(
@@ -152,8 +150,6 @@ export const CanvasControls = memo(function CanvasControls() {
         </div>,
         document.body,
       )}
-
-      <TerminalManager open={tmOpen} onClose={() => setTmOpen(false)} />
     </>
   );
 });

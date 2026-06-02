@@ -307,3 +307,18 @@ body {
   background: rgba(255, 140, 0, 0.3);
   color: #ffffff;
 }
+
+/* Generic spinner: a small ring that rotates. Used for in-progress AI actions
+   (e.g. naming a terminal) so the user gets clear "working…" feedback. */
+@keyframes cgSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.cg-spinner {
+  display: inline-block;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-faint, #555);
+  border-top-color: var(--text-accent, #ff8c00);
+  animation: cgSpin 0.7s linear infinite;
+}

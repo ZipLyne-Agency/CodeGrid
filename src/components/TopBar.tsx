@@ -464,12 +464,16 @@ export const TopBar = memo(function TopBar({ onFocusSession, onCloseSession }: T
           document.body,
         )}
 
-        {/* In side-panel mode the tab strip is gone, so surface a compact
-            toggle here to pop the terminals drawer open/closed. */}
+        {/* Top-right actions: + New · command palette */}
+        <CanvasControls />
+
+        {/* Far-right: toggle the Panes drawer (terminals, previews, notes).
+            In side-panel mode the tab strip is gone, so this is the way to
+            reach the list. */}
         {terminalListPlacement === "sidebar" && (
           <button
             onClick={() => toggleTerminalDrawer()}
-            title="Toggle terminals panel"
+            title="Toggle panes drawer"
             className="cg-focus-ring"
             style={{
               display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0,
@@ -483,7 +487,7 @@ export const TopBar = memo(function TopBar({ onFocusSession, onCloseSession }: T
             onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-accent)"; e.currentTarget.style.borderColor = "var(--text-accent)"; }}
             onMouseLeave={(e) => { e.currentTarget.style.color = terminalDrawerOpen ? "var(--text-accent)" : "var(--text-muted)"; e.currentTarget.style.borderColor = terminalDrawerOpen ? "var(--accent-border)" : "var(--border-default)"; }}
           >
-            <UI_ICON.terminals size={14} weight={terminalDrawerOpen ? "fill" : "regular"} style={{ flexShrink: 0 }} /> Terminals
+            <UI_ICON.terminals size={14} weight={terminalDrawerOpen ? "fill" : "regular"} style={{ flexShrink: 0 }} /> Panes
             {activeSessions.filter(isTerminalSession).length > 0 && (
               <span style={{ fontSize: 9, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
                 {activeSessions.filter(isTerminalSession).length}
@@ -491,9 +495,6 @@ export const TopBar = memo(function TopBar({ onFocusSession, onCloseSession }: T
             )}
           </button>
         )}
-
-        {/* Top-right actions: manage terminals · command palette · + New */}
-        <CanvasControls />
       </div>
 
       {/* Session tab bar — real terminals only (notes/previews live in the aux menu).

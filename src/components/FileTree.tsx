@@ -500,26 +500,14 @@ const FileTreeNode = memo(function FileTreeNode({
         onFileClick(entry.path);
         return;
       }
-
-      setExpanded((prev) => {
-        if (!prev && children === null) {
-          // Lazy load children (with dedup)
-          if (!pendingLoads.has(entry.path)) {
-            pendingLoads.add(entry.path);
-            setLoading(true);
-            listDirectory(entry.path, 1)
-              .then((result) => setChildren(result))
-              .catch(() => setChildren([]))
-              .finally(() => {
-                pendingLoads.delete(entry.path);
-                setLoading(false);
-              });
-          }
-        }
-        return !prev;
-      });
+      // Just flip the flag — loading the children is handled by the effect
+      // below, which also covers folders that start expanded (depth 0). This is
+      // what fixes the "click twice to expand" bug: previously the lazy-load
+      // only fired on the collapse→expand transition, so a folder rendered with
+      // a down-chevron but no loaded children never showed anything on first click.
+      setExpanded((prev) => !prev);
     },
-    [children, entry.path, entry.is_dir, onFileClick],
+    [entry.is_dir, entry.path, onFileClick],
   );
 
   // Filter logic
@@ -541,6 +529,22 @@ const FileTreeNode = memo(function FileTreeNode({
   // Auto-expand directories when filtering
   const shouldShowExpanded =
     entry.is_dir && (expanded || (!!filter && hasMatchingChildren));
+
+  // Load children whenever a directory needs to render expanded but hasn't been
+  // loaded yet — covers both a fresh click and folders that start expanded.
+  useEffect(() => {
+    if (!entry.is_dir || !shouldShowExpanded || children !== null) return;
+    if (pendingLoads.has(entry.path)) return;
+    pendingLoads.add(entry.path);
+    setLoading(true);
+    listDirectory(entry.path, 1)
+      .then((result) => setChildren(result))
+      .catch(() => setChildren([]))
+      .finally(() => {
+        pendingLoads.delete(entry.path);
+        setLoading(false);
+      });
+  }, [shouldShowExpanded, children, entry.is_dir, entry.path]);
 
   // Git status for this file
   const gitStatus = gitChanges.get(entry.name) ?? gitChanges.get(entry.path);

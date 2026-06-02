@@ -612,7 +612,7 @@ export const GitManager = memo(function GitManager() {
 
             {/* Action buttons */}
             <div style={{ display: "flex", gap: "3px", alignItems: "center", flexShrink: 0 }}>
-              <ActionBtn label="★ REVIEW" loading={false} onClick={() => setReviewPanelOpen(true, dir)} color="var(--text-accent)" bold />
+              <ActionBtn label={<span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><UI_ICON.ai size={12} weight="fill" /> AI REVIEW</span>} loading={false} onClick={() => setReviewPanelOpen(true, dir)} color="var(--text-accent)" bold />
               <ActionBtn label="FETCH" loading={loading === "fetch"} onClick={handleFetch} color="var(--text-muted)" />
               <ActionBtn label="STASH" loading={loading === "stash"} onClick={() => handleStash(false)} color="var(--text-muted)" />
               <ActionBtn label="POP" loading={false} onClick={() => handleStash(true)} color="var(--text-muted)" />
@@ -1178,7 +1178,7 @@ export const GitManager = memo(function GitManager() {
 // --- Sub-components ---
 
 function ActionBtn({ label, loading, onClick, color, bold }: {
-  label: string; loading: boolean; onClick: () => void; color: string; bold?: boolean;
+  label: React.ReactNode; loading: boolean; onClick: () => void; color: string; bold?: boolean;
 }) {
   return (
     <button

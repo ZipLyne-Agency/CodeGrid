@@ -70,7 +70,6 @@ export const TerminalSidebar = memo(function TerminalSidebar({
   const placement = useWorkspaceStore((s) => s.terminalListPlacement);
   const open = useWorkspaceStore((s) => s.terminalDrawerOpen);
   const toggleDrawer = useWorkspaceStore((s) => s.toggleTerminalDrawer);
-  const setDrawerOpen = useWorkspaceStore((s) => s.setTerminalDrawerOpen);
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const setNewSessionDialogOpen = useWorkspaceStore((s) => s.setNewSessionDialogOpen);
   const workspaces = useWorkspaceStore((s) => s.workspaces);
@@ -83,6 +82,7 @@ export const TerminalSidebar = memo(function TerminalSidebar({
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [confirmKillAll, setConfirmKillAll] = useState(false);
 
   // Track running→idle transitions for "done" flash animations (parity w/ top bar).
   const prevStatusRef = useRef<Map<string, string>>(new Map());
@@ -259,7 +259,6 @@ export const TerminalSidebar = memo(function TerminalSidebar({
             </span>
           )}
           <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, color: "var(--text-faint)" }}>
-            {(() => { const Glyph = agent.icon; return <Glyph size={13} weight={isFocused ? "fill" : "regular"} color={agent.color} style={{ flexShrink: 0 }} />; })()}
             <span style={{ letterSpacing: 0.5 }}>{agent.label}</span>
           </span>
         </div>
@@ -288,68 +287,11 @@ export const TerminalSidebar = memo(function TerminalSidebar({
 
   const count = terminalTabs.length;
   const runningCount = terminalTabs.filter((s) => s.status === "running").length;
-  const needsYouCount = terminalTabs.filter((s) => s.status === "waiting" || s.status === "error").length;
 
   return (
     <>
-      {/* Collapsed handle — a slim vertical tab clinging to the right edge. */}
-      <button
-        onClick={() => setDrawerOpen(true)}
-        aria-label={`Open terminals (${count})`}
-        title={`Open terminals (${count})`}
-        style={{
-          position: "absolute",
-          top: 14,
-          right: 0,
-          zIndex: 30,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 8,
-          padding: "12px 7px",
-          background: "rgba(20,20,20,0.94)",
-          border: "1px solid var(--border-default)",
-          borderRight: "none",
-          borderRadius: "10px 0 0 10px",
-          boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
-          color: "var(--text-secondary)",
-          cursor: "pointer",
-          backdropFilter: "blur(6px)",
-          // Pull off-screen with the drawer so they cross-fade cleanly.
-          transform: open ? "translateX(20px)" : "translateX(0)",
-          opacity: open ? 0 : 1,
-          pointerEvents: open ? "none" : "auto",
-          transition: "transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease",
-          fontFamily: "var(--font-ui)",
-        }}
-        onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-accent)"; e.currentTarget.style.borderColor = "var(--text-accent)"; }}
-        onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-secondary)"; e.currentTarget.style.borderColor = "var(--border-default)"; }}
-      >
-        <UI_ICON.terminals size={14} style={{ flexShrink: 0 }} />
-        <span style={{
-          writingMode: "vertical-rl",
-          textOrientation: "mixed",
-          fontSize: 10,
-          fontWeight: 700,
-          letterSpacing: 1.5,
-          transform: "rotate(180deg)",
-        }}>
-          TERMINALS
-        </span>
-        {count > 0 && (
-          <span style={{
-            fontSize: 10, fontWeight: 800, lineHeight: 1,
-            color: "var(--text-accent)", background: "rgba(255,140,0,0.16)",
-            borderRadius: 6, padding: "3px 5px", fontVariantNumeric: "tabular-nums",
-          }}>
-            {count}
-          </span>
-        )}
-        {/* attention pip when any terminal needs you */}
-        {needsYouCount > 0 && (
-          <span aria-hidden style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--status-waiting)" }} />
-        )}
-      </button>
+      {/* The collapsed edge-handle pop-out was removed — the terminals drawer is
+          opened from the single "Terminals" toggle in the top navigation bar. */}
 
       {/* The drawer itself. */}
       <div
@@ -383,7 +325,7 @@ export const TerminalSidebar = memo(function TerminalSidebar({
           flexShrink: 0,
         }}>
           <span style={{ color: "var(--text-accent)", fontWeight: 700, fontSize: 12, letterSpacing: 1 }}>
-            TERMINALS
+            PANES
           </span>
           <span style={{
             fontSize: 10, fontWeight: 700, color: "var(--text-muted)",
@@ -416,10 +358,36 @@ export const TerminalSidebar = memo(function TerminalSidebar({
               <UI_ICON.sort size={13} style={{ flexShrink: 0 }} /> {SORT_LABEL[sortMode]}
             </button>
           )}
+          {terminalTabs.length > 0 && (
+            <button
+              onClick={() => {
+                if (!confirmKillAll) {
+                  setConfirmKillAll(true);
+                  setTimeout(() => setConfirmKillAll(false), 3000);
+                  return;
+                }
+                terminalTabs.forEach((s) => onCloseSession(s.id));
+                setConfirmKillAll(false);
+              }}
+              title="Close every terminal in this workspace"
+              className="cg-focus-ring"
+              style={{
+                background: confirmKillAll ? "var(--status-error)" : "transparent",
+                border: `1px solid ${confirmKillAll ? "var(--status-error)" : "var(--border-default)"}`,
+                color: confirmKillAll ? "#fff" : "var(--text-muted)", fontSize: 10, fontFamily: "var(--font-ui)",
+                cursor: "pointer", padding: "3px 7px", borderRadius: 6, whiteSpace: "nowrap",
+                display: "inline-flex", alignItems: "center", gap: 4,
+              }}
+              onMouseEnter={(e) => { if (!confirmKillAll) { e.currentTarget.style.color = "var(--status-error)"; e.currentTarget.style.borderColor = "var(--status-error)"; } }}
+              onMouseLeave={(e) => { if (!confirmKillAll) { e.currentTarget.style.color = "var(--text-muted)"; e.currentTarget.style.borderColor = "var(--border-default)"; } }}
+            >
+              <UI_ICON.trash size={12} style={{ flexShrink: 0 }} /> {confirmKillAll ? "Confirm?" : "Kill all"}
+            </button>
+          )}
           <button
             onClick={toggleDrawer}
-            title="Collapse terminals"
-            aria-label="Collapse terminals"
+            title="Collapse panes"
+            aria-label="Collapse panes"
             className="cg-focus-ring"
             style={{
               background: "transparent", border: "1px solid var(--border-default)",
