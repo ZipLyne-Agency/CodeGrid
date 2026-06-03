@@ -15,9 +15,9 @@ function displayName(s: SessionWithModel): string {
 /** Agent-like sessions are the ones worth a "finished" notification (not bare shells). */
 function isAgentSession(s: SessionWithModel): boolean {
   const cmd = (s.command ?? "").toLowerCase();
-  if (/\b(claude|codex|gemini|cursor|grok)\b/.test(cmd)) return true;
+  if (/\b(claude|codex|gemini|cursor|grok|venice)\b/.test(cmd)) return true;
   const act = (s.activityName ?? "").toLowerCase();
-  return /claude|codex|gemini|cursor|grok/.test(act);
+  return /claude|codex|gemini|cursor|grok|venice|openclaw/.test(act);
 }
 
 /** Whether the app window is currently focused by the user. */

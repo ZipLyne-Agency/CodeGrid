@@ -43,8 +43,8 @@ function sectionForSession(s: { kind?: string }): SectionKey {
 /** Agent-backed terminals (claude/codex/…) — the only ones worth a "done" flash. */
 function isAgentSession(s: { command?: string | null; activityName?: string | null }): boolean {
   const cmd = (s.command ?? "").toLowerCase();
-  if (/\b(claude|codex|gemini|cursor|grok)\b/.test(cmd)) return true;
-  return /claude|codex|gemini|cursor|grok/.test((s.activityName ?? "").toLowerCase());
+  if (/\b(claude|codex|gemini|cursor|grok|venice)\b/.test(cmd)) return true;
+  return /claude|codex|gemini|cursor|grok|venice|openclaw/.test((s.activityName ?? "").toLowerCase());
 }
 
 type SortMode = "pane" | "type" | "recent";

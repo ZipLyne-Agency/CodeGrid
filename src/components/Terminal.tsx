@@ -11,7 +11,7 @@ import { UI_ICON } from "../lib/icons";
 
 /** Agent CLIs whose status we infer from spinner/prompt markers rather than raw output. */
 function commandIsAgent(command: string | null | undefined): boolean {
-  return /\b(claude|codex|gemini|cursor|grok)\b/.test((command ?? "").toLowerCase());
+  return /\b(claude|codex|gemini|cursor|grok|venice)\b/.test((command ?? "").toLowerCase());
 }
 
 /** Quote a filesystem path so it can be safely pasted onto a shell command line. */
@@ -74,6 +74,11 @@ export const TerminalView = memo(function TerminalView({ sessionId, agentColor }
   const sessionCommand = useSessionStore((s) => s.sessions.find((x) => x.id === sessionId)?.command);
   const isAgentRef = useRef(false);
   isAgentRef.current = commandIsAgent(sessionCommand);
+  // Venice panes are OpenClaw pointed at Venice: their output names the underlying
+  // model ("claude") and tooling ("node"), which would mislabel the pane. Keep the
+  // stable "Venice" identity by not deriving an activity name for them.
+  const isVeniceRef = useRef(false);
+  isVeniceRef.current = /\b(venice|openclaw)\b/i.test(sessionCommand ?? "");
   const addToast = useToastStore((s) => s.addToast);
 
   const [searchOpen, setSearchOpen] = useState(false);
@@ -174,7 +179,7 @@ export const TerminalView = memo(function TerminalView({ sessionId, agentColor }
       if (activityTimerRef.current) clearTimeout(activityTimerRef.current);
       activityTimerRef.current = setTimeout(() => {
         const detected = detectActivity(pendingOutputRef.current);
-        if (detected) {
+        if (detected && !isVeniceRef.current) {
           setSessionActivityName(sessionId, detected);
         }
         // Clear accumulated output after processing

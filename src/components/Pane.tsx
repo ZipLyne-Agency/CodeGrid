@@ -40,7 +40,7 @@ export const Pane = memo(function Pane({ session, onClose, onDragStart }: PanePr
     prevStatusRef.current = curr;
     // Only agent terminals get the "done generating" glow — shells, browsers and
     // notes must never flash.
-    const isAgent = /\b(claude|codex|gemini|cursor|grok)\b/.test((session.command ?? "").toLowerCase());
+    const isAgent = /\b(claude|codex|gemini|cursor|grok|venice)\b/.test((session.command ?? "").toLowerCase());
     if (prev === "running" && curr === "idle" && isAgent) {
       setDoneGlow(true);
       const t = setTimeout(() => setDoneGlow(false), 1500);
@@ -55,7 +55,9 @@ export const Pane = memo(function Pane({ session, onClose, onDragStart }: PanePr
 
   // Display name: manual name > activity name > fallback
   const displayName = session.manualName
-    ?? session.activityName
+    // Venice (OpenClaw) panes keep their agent identity — their activity name
+    // echoes the underlying model ("Claude") or tooling ("Node"), not the agent.
+    ?? (agent.kind === "venice" ? agent.label : session.activityName)
     ?? agent.label;
 
   const handleFocus = useCallback(() => {

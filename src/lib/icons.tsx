@@ -11,7 +11,7 @@
 import {
   Folder, MagnifyingGlass, GitBranch, Broadcast, ChartLineUp, GearSix,
   SidebarSimple, SquaresFour, Command, Plus, Terminal,
-  Sparkle, Star, Cursor, Lightning, BracketsAngle, Browser, Note, CopySimple,
+  Sparkle, Star, Cursor, Lightning, BracketsAngle, Browser, Note, CopySimple, Waves,
   Crown, Lock, LockOpen, X, CaretDown, CaretRight, Check, Warning,
   ArrowsDownUp, PencilSimple, Trash, Plugs, BookOpen, DotsThree, MagicWand,
   Minus, CornersOut, CornersIn, GitFork,
@@ -28,6 +28,7 @@ export const AGENT_ICON: Record<AgentKind, Icon> = {
   gemini:  Star,
   cursor:  Cursor,
   grok:    Lightning,
+  venice:  Waves,
   shell:   Terminal,
   browser: Browser,
   note:    Note,

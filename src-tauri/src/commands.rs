@@ -205,6 +205,48 @@ pub async fn create_session(
                 });
             (path, Vec::new())
         }
+        "venice" => {
+            // Venice-powered coding agent, driven by **aider** pointed at Venice's
+            // OpenAI-compatible API — every Venice model (Grok, GPT, Claude,
+            // Qwen-Coder, …) behind one key, and aider actually reads/edits the
+            // repo (it runs in the project cwd) unlike OpenClaw, whose file tools
+            // are locked to its own private workspace. aider is not bundled: the
+            // first launch prompts once for the Venice key (saved 0600 to
+            // ~/.codegrid/venice.env), self-installs aider, then execs it in the
+            // project dir. We spawn the user's shell to run that bootstrap but
+            // persist a recognizable command ("venice (aider)") below so theming,
+            // detection, and restore treat it as a Venice agent, not a bare shell.
+            let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+            let script = r#"
+VENICE_ENV="$HOME/.codegrid/venice.env"
+[ -f "$VENICE_ENV" ] && . "$VENICE_ENV"
+if [ -z "$VENICE_API_KEY" ]; then
+  printf '\033[36m▸ Paste your Venice API key (vapi_…) and press Enter (input is shown): \033[0m'
+  IFS= read -r VENICE_API_KEY
+  mkdir -p "$HOME/.codegrid"
+  printf 'VENICE_API_KEY=%s\n' "$VENICE_API_KEY" > "$VENICE_ENV"
+  chmod 600 "$VENICE_ENV"
+fi
+if ! command -v aider >/dev/null 2>&1; then
+  printf '\033[36m▸ Installing aider (one-time)…\033[0m\n'
+  curl -LsSf https://aider.chat/install.sh | sh
+  export PATH="$HOME/.local/bin:$PATH"
+fi
+if ! command -v aider >/dev/null 2>&1; then
+  printf '\033[31m✗ aider is not on PATH after install. See https://aider.chat/docs/install.html — dropping you into a shell.\033[0m\n'
+  exec "$SHELL" -l
+fi
+export OPENAI_API_BASE="https://api.venice.ai/api/v1"
+export OPENAI_API_KEY="$VENICE_API_KEY"
+export GIT_PAGER=cat PAGER=cat
+printf '\033[36m▸ Venice via aider · model claude-sonnet-4-6 · edits stay uncommitted (shown in the Git panel) · switch with /model openai/grok-41-fast\033[0m\n'
+exec aider --model openai/claude-sonnet-4-6 --edit-format diff --no-auto-commits --yes-always --no-show-model-warnings
+"#;
+            (
+                shell,
+                vec!["-l".to_string(), "-c".to_string(), script.to_string()],
+            )
+        }
         _ => {
             // Default: Claude Code
             let path = which::which("claude")
@@ -223,6 +265,16 @@ pub async fn create_session(
     eprintln!("[CodeGrid] Agent: {agent_type} binary: {command_path}");
     eprintln!("[CodeGrid] Working dir: {actual_dir}");
 
+    // Agents we wrap in a launcher (Venice → OpenClaw via a shell bootstrap)
+    // actually spawn the user's shell, so persist a recognizable command instead
+    // of the raw shell path — pane theming, agent detection, and restore all key
+    // off `command`.
+    let display_command = if agent_type == "venice" {
+        "venice (aider)".to_string()
+    } else {
+        command_path.clone()
+    };
+
     // Spawn PTY
     let mut rx = state.pty_manager.spawn_session(
         &session_id,
@@ -239,7 +291,7 @@ pub async fn create_session(
         session_id.clone(),
         workspace_id,
         actual_dir,
-        command_path,
+        display_command,
         pane_number,
     );
     session.git_branch = git_branch;
@@ -2417,7 +2469,11 @@ pub async fn git_status(working_dir: String) -> Result<GitStatusInfo, String> {
     };
 
     // Porcelain status
-    let status_out = run_git(&dir, &["status", "--porcelain=v1"])?;
+    // NOTE: use the non-trimming capture. `run_git` trims the whole stdout, which
+    // strips the leading space of porcelain's staged-status column on the first
+    // line (e.g. " M file" -> "M file"), shifting `line[3..]` one char into the
+    // filename ("README.md" -> "EADME.md"). The raw output preserves the columns.
+    let status_out = run_git_capture(&dir, &["status", "--porcelain=v1"]);
     let mut staged = Vec::new();
     let mut unstaged = Vec::new();
     let mut untracked = Vec::new();

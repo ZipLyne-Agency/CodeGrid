@@ -5,7 +5,7 @@
 
 import { AGENT_ICON, type Icon } from "./icons";
 
-export type AgentKind = "claude" | "codex" | "gemini" | "cursor" | "grok" | "shell" | "browser" | "note";
+export type AgentKind = "claude" | "codex" | "gemini" | "cursor" | "grok" | "venice" | "shell" | "browser" | "note";
 
 export interface AgentTheme {
   kind: AgentKind;
@@ -27,6 +27,7 @@ const AGENTS: Record<AgentKind, AgentTheme> = {
   gemini:  { kind: "gemini",  label: "Gemini",  tag: "GEMINI",  color: "#6f9bcc", icon: AGENT_ICON.gemini,  glyph: "✦" },
   cursor:  { kind: "cursor",  label: "Cursor",  tag: "CURSOR",  color: "#a98bd6", icon: AGENT_ICON.cursor,  glyph: "⌖" },
   grok:    { kind: "grok",    label: "Grok",    tag: "GROK",    color: "#cfcfcf", icon: AGENT_ICON.grok,    glyph: "⌬" },
+  venice:  { kind: "venice",  label: "Venice",  tag: "VENICE",  color: "#14b8a6", icon: AGENT_ICON.venice,  glyph: "≈" },
   shell:   { kind: "shell",   label: "Shell",   tag: "SHELL",   color: "#6f9bcc", icon: AGENT_ICON.shell,   glyph: "›_" },
   browser: { kind: "browser", label: "Browser", tag: "WEB",     color: "#6f9bcc", icon: AGENT_ICON.browser, glyph: "◧" },
   note:    { kind: "note",    label: "Note",    tag: "NOTE",    color: "#d6a94e", icon: AGENT_ICON.note,    glyph: "✎" },
@@ -41,6 +42,7 @@ export function detectAgent(command: string | null | undefined): AgentTheme {
   // Cursor's CLI binary is "cursor-agent"
   if (cmd.includes("cursor") || /\bagent\b/.test(cmd)) return AGENTS.cursor;
   if (cmd.includes("grok")) return AGENTS.grok;
+  if (cmd.includes("venice") || cmd.includes("openclaw")) return AGENTS.venice;
   return AGENTS.shell;
 }
 

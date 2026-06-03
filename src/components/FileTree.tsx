@@ -479,7 +479,10 @@ const FileTreeNode = memo(function FileTreeNode({
   onContextMenu,
   onMoveFile,
 }: FileTreeNodeProps) {
-  const [expanded, setExpanded] = useState(depth < 1);
+  // Folders always start collapsed — open them explicitly. Keeps the root tidy
+  // (all folders first, then all root files) instead of expanded folders dumping
+  // their children inline between sibling folders.
+  const [expanded, setExpanded] = useState(false);
   const [children, setChildren] = useState<FileEntry[] | null>(
     entry.children ?? null,
   );

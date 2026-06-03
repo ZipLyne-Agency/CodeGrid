@@ -23,6 +23,7 @@ const AGENTS = [
   { id: "gemini", label: "Gemini", desc: "Google", color: "#4285f4", icon: "G" },
   { id: "cursor", label: "Cursor", desc: "Cursor", color: "#a855f7", icon: "A" },
   { id: "grok", label: "Grok", desc: "xAI", color: "#e6e6e6", icon: "K" },
+  { id: "venice", label: "Venice", desc: "aider · all models", color: "#14b8a6", icon: "V" },
   { id: "shell", label: "Shell", desc: "Terminal", color: "#4a9eff", icon: ">" },
 ] as const;
 
@@ -42,7 +43,10 @@ export const NewSessionDialog = memo(function NewSessionDialog({
     () => allSessions.filter((s) => s.workspace_id === activeWorkspaceId),
     [allSessions, activeWorkspaceId],
   );
-  const currentProjectDir = activeWorkspace?.repo_path ?? workspaceSessions[0]?.working_dir ?? null;
+  // Fall back to the most recent project so the quick "Same Project" agent
+  // launcher still appears (and you go straight to agent choice) even when the
+  // active workspace has no repo yet or no sessions.
+  const currentProjectDir = activeWorkspace?.repo_path ?? workspaceSessions[0]?.working_dir ?? recentDirs[0] ?? null;
 
   const [showDifferentProject, setShowDifferentProject] = useState(false);
   const [tab, setTab] = useState<"recent" | "browse" | "clone" | "github">("recent");
@@ -50,7 +54,7 @@ export const NewSessionDialog = memo(function NewSessionDialog({
   const [cloneUrl, setCloneUrl] = useState("");
   const [cloneTargetDir, setCloneTargetDir] = useState("");
   const [resume, setResume] = useState(false);
-  const [sessionType, setSessionType] = useState<"claude" | "shell" | "codex" | "gemini" | "cursor" | "grok">("claude");
+  const [sessionType, setSessionType] = useState<"claude" | "shell" | "codex" | "gemini" | "cursor" | "grok" | "venice">("claude");
   const [filter, setFilter] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);

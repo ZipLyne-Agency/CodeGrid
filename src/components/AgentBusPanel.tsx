@@ -35,7 +35,7 @@ export const AgentBusPanel = memo(function AgentBusPanel() {
   const agents = sessions.filter((s) => {
     if (s.kind === "note" || s.kind === "browser") return false;
     if (activeWorkspaceId && s.workspace_id !== activeWorkspaceId) return false;
-    return /\b(claude|codex|gemini|cursor|grok)\b/.test((s.command ?? "").toLowerCase());
+    return /\b(claude|codex|gemini|cursor|grok|venice)\b/.test((s.command ?? "").toLowerCase());
   });
 
   const handleInstall = useCallback(async () => {

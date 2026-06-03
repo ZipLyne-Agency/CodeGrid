@@ -18,6 +18,7 @@ const AGENT_COLORS: Record<string, string> = {
   GEMINI: "#4285f4",
   CURSOR: "#a855f7",
   GROK: "#e6e6e6",
+  VENICE: "#14b8a6",
   SHELL: "#4a9eff",
 };
 
@@ -36,6 +37,7 @@ function detectAgent(command: string): { label: string; color: string } {
   if (cmd.includes("gemini")) return { label: "GEMINI", color: AGENT_COLORS.GEMINI };
   if (cmd.includes("cursor") || /\bagent\b/.test(cmd)) return { label: "CURSOR", color: AGENT_COLORS.CURSOR };
   if (cmd.includes("grok")) return { label: "GROK", color: AGENT_COLORS.GROK };
+  if (cmd.includes("venice") || cmd.includes("openclaw")) return { label: "VENICE", color: AGENT_COLORS.VENICE };
   return { label: "SHELL", color: AGENT_COLORS.SHELL };
 }
 

@@ -74,6 +74,7 @@ function detectSessionType(command: string): string {
   // Cursor's CLI binary is "cursor-agent" (matches "cursor" and word "agent")
   if (cmd.includes("cursor") || /\bagent\b/.test(cmd)) return "cursor";
   if (cmd.includes("grok")) return "grok";
+  if (cmd.includes("venice") || cmd.includes("openclaw")) return "venice";
   if (cmd.includes("claude")) return "claude";
   return "shell";
 }
@@ -444,7 +445,7 @@ export default function App() {
 
   // Session count tracking — count shells vs agents and update resource store
   useEffect(() => {
-    const agentKeywords = ["claude", "codex", "gemini", "cursor", "agent", "grok"];
+    const agentKeywords = ["claude", "codex", "gemini", "cursor", "agent", "grok", "venice", "openclaw"];
     let shellCount = 0;
     let agentCount = 0;
     for (const s of allSessions) {

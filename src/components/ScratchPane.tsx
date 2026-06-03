@@ -26,7 +26,7 @@ const UI_FONT = "var(--font-ui)";
  * never restored on relaunch. Child PTYs are killed when the pane unmounts.
  */
 
-const PROVIDERS: AgentKind[] = ["claude", "codex", "gemini", "grok", "cursor", "shell"];
+const PROVIDERS: AgentKind[] = ["claude", "codex", "gemini", "grok", "cursor", "venice", "shell"];
 
 /**
  * Scratch child PTYs are spawned under this sentinel workspace id instead of the

@@ -31,7 +31,7 @@ export interface WorkspaceInfo {
 }
 
 // Session commands
-export type AgentType = "claude" | "codex" | "gemini" | "cursor" | "grok";
+export type AgentType = "claude" | "codex" | "gemini" | "cursor" | "grok" | "venice";
 
 export async function createSession(
   workingDir: string,

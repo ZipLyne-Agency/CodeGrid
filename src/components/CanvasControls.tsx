@@ -61,6 +61,7 @@ export const CanvasControls = memo(function CanvasControls() {
     else if (/\bgemini\b/i.test(cmd)) type = "gemini";
     else if (/\bcursor\b/i.test(cmd)) type = "cursor";
     else if (/\bgrok\b/i.test(cmd)) type = "grok";
+    else if (/\b(venice|openclaw)\b/i.test(cmd)) type = "venice";
     else if (/\b(zsh|bash|fish|sh|powershell|pwsh|cmd)\b/i.test(cmd)) type = "shell";
     window.dispatchEvent(new CustomEvent("codegrid:quick-session", { detail: { path: dir, type } }));
   }, [workspaces, activeWorkspaceId, sessions, focusedSessionId, setNewSessionDialogOpen]);
