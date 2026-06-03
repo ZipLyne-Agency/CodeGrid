@@ -537,7 +537,7 @@ function TotalStakedBox({d}: {d: ChainData}) {
   return (
     <AsciiBox title="network">
       <div className="flex items-baseline justify-between font-mono text-[13px]">
-        <span className="text-text-secondary">total $GRID staked</span>
+        <span className="text-text-secondary">$GRID in staking</span>
         <span className="text-accent tabular-nums">
           {d.totalStakedNum != null ? <CountUp value={d.totalStakedNum} /> : "…"}{" "}
           <span className="text-text-secondary">GRID</span>
