@@ -142,7 +142,7 @@ const stats: { value: string; label: string }[] = [
 const features = [
   {
     icon: "⊕",
-    title: "5 AI Agents, One Workspace",
+    title: "6 AI Agents, One Workspace",
     desc: "Run Claude, Codex, Gemini, Grok, Cursor, Venice, and plain shells side by side. Mix and match — use the best model for each task without switching apps.",
     wide: true,
   },
@@ -178,8 +178,8 @@ const features = [
   },
   {
     icon: "⊟",
-    title: "Browser Panes",
-    desc: "Open a browser pane right on the canvas alongside your terminals. Preview your app, check docs, or review a PR — without leaving CodeGrid.",
+    title: "Live Preview Panes",
+    desc: "Open an in-app browser pane for your dev server right on the canvas. CodeGrid auto-detects localhost URLs in your terminals and offers to open them beside the code.",
     wide: false,
   },
   {

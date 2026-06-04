@@ -11,7 +11,7 @@ const GITHUB = "https://github.com/ZipLyne-Agency/CodeGrid-Claude-Code-Terminal"
 // only. Everything else lives in a labeled dropdown so the bar reads as
 // "real product, documented, transparent" rather than a wall of marketing tabs.
 const primary: { label: string; href: string }[] = [
-  { label: "Features", href: "/#features" },
+  { label: "Features", href: "/features" },
   { label: "Docs", href: "/docs" },
 ];
 

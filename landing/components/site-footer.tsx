@@ -7,7 +7,7 @@ const columns: { heading: string; links: { label: string; href: string; external
   {
     heading: "Product",
     links: [
-      { label: "Features", href: "/#features" },
+      { label: "Features", href: "/features" },
       { label: "Pricing", href: "/pricing" },
       { label: "Docs", href: "/docs" },
       { label: "Changelog", href: "/changelog" },
