@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import Link from "next/link";
 import MuxPlayer from "@mux/mux-player-react";
 import { motion, useScroll, useTransform, useReducedMotion } from "framer-motion";
@@ -11,7 +11,6 @@ import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { WindowFrame } from "@/components/ui/window-frame";
 import { Marquee } from "@/components/ui/marquee";
 import { FaqAccordion } from "@/components/ui/faq-accordion";
-import { GRID_TOKEN_ADDRESS, GRID_CHAIN } from "@/lib/token";
 
 /** Mux asset playback ID — hero demo (autoplay requires muted in browsers). */
 const HERO_MUX_PLAYBACK_ID = "oPu7h015GHVMppz025Q6peZxUOAu69LrkMMfdRkz00gm6Q";
@@ -368,100 +367,52 @@ function SectionHead({
 const WRAP = "w-full max-w-6xl mx-auto px-4 sm:px-6";
 
 /* ------------------------------------------------------------------ */
-/*  $GRID token pill — copy contract address + view chart              */
+/*  $GRID strip — understated, product-first. The app is free and works  */
+/*  without crypto; the token is optional and lives well below the fold. */
 /* ------------------------------------------------------------------ */
 
-function TokenPill() {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(GRID_TOKEN_ADDRESS);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    } catch {
-      /* clipboard unavailable — no-op */
-    }
-  };
-
+function TokenStrip() {
   return (
-    <div className="w-full max-w-xl mx-auto border border-accent/40 bg-accent/[0.06] backdrop-blur-sm">
-      {/* Label row */}
-      <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-b border-accent/30">
-        <span className="flex items-center gap-2 font-mono text-xs font-bold text-accent tracking-wide">
-          $GRID
-          <span className="font-normal text-[10px] text-text-secondary uppercase tracking-widest">
-            Contract · {GRID_CHAIN}
-          </span>
-        </span>
-        <Link
-          href="/token"
-          title="$GRID prices, charts & where to buy"
-          className="font-mono text-[11px] text-text-secondary hover:text-accent transition-colors whitespace-nowrap"
-        >
-          Token page <span className="opacity-60">→</span>
-        </Link>
-      </div>
-
-      {/* Full address — one line, click to copy */}
-      <button
-        type="button"
-        onClick={handleCopy}
-        title="Copy contract address"
-        aria-label={copied ? "Contract address copied" : "Copy $GRID contract address"}
-        className="group flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-accent/[0.04] transition-colors"
-      >
-        <span className="flex-1 min-w-0 font-mono text-[11px] sm:text-xs leading-none text-text-primary select-all overflow-x-auto whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {GRID_TOKEN_ADDRESS}
-        </span>
-        <span className="shrink-0 font-mono text-[11px] font-semibold text-accent group-hover:text-accent-hover transition-colors">
-          {copied ? "Copied ✓" : "Copy ⧉"}
-        </span>
-      </button>
-
-      {/* Stake — the headline action. Staking $GRID is how you unlock CodeGrid
-          Pro, so it gets the loudest, most obvious slot in the pill. */}
-      <Link
-        href="/token/stake"
-        title="Stake $GRID on Base to unlock CodeGrid Pro — you always keep your principal"
-        className="group flex items-center justify-between gap-2 px-3 py-2.5 border-t border-accent/30 bg-accent/[0.12] hover:bg-accent/[0.2] transition-colors"
-      >
-        <span className="flex items-center gap-2 font-mono text-xs min-w-0">
-          <span className="text-accent font-semibold shrink-0" aria-hidden>▶_</span>
-          <span className="text-text-primary font-semibold truncate">
-            Stake $GRID
-          </span>
-          <span className="hidden sm:inline text-text-secondary truncate">
-            → unlock CodeGrid Pro
-          </span>
-        </span>
-        <span className="font-mono text-[11px] font-semibold text-accent group-hover:text-accent-hover transition-colors shrink-0 inline-flex items-center gap-1">
-          Stake
-          <span className="transition-transform group-hover:translate-x-0.5">→</span>
-        </span>
-      </Link>
-
-      {/* Treasury — secondary, quieter row. The live, public terminal is a
-          transparency signal, one tap away. */}
-      <Link
-        href="/token/treasury"
-        title="Open the live $GRID treasury terminal — balance, claim history, policy"
-        className="group flex items-center justify-between gap-2 px-3 py-2 border-t border-accent/20 hover:bg-accent/[0.06] transition-colors"
-      >
-        <span className="flex items-center gap-2 font-mono text-xs min-w-0">
-          <span
-            className="round-full w-1.5 h-1.5 inline-block bg-status-running pulse-glow shrink-0"
-            aria-hidden
-          />
-          <span className="text-text-secondary truncate">
-            Open the live treasury terminal
-          </span>
-        </span>
-        <span className="font-mono text-[11px] text-text-secondary group-hover:text-accent transition-colors shrink-0 inline-flex items-center gap-1">
-          <span className="hidden sm:inline font-normal uppercase tracking-widest text-[10px]">live · on-chain</span>
-          <span className="transition-transform group-hover:translate-x-0.5">→</span>
-        </span>
-      </Link>
+    <div className="cv-auto border-t border-border">
+      <Reveal className={`${WRAP} py-14 sm:py-20`}>
+        <RevealItem>
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-border bg-bg-secondary/30 px-6 py-7 sm:px-8">
+            <div className="max-w-xl">
+              <div className="font-mono text-[10px] uppercase tracking-widest text-text-secondary mb-2">
+                Optional · on Base
+              </div>
+              <h3 className="font-display text-lg sm:text-xl font-semibold text-text-primary mb-2">
+                There&apos;s a token. The app comes first.
+              </h3>
+              <p className="text-text-secondary text-sm leading-relaxed">
+                CodeGrid is free, open source, and fully usable without ever touching crypto.
+                $GRID is optional — stake it to unlock Pro features, or browse the public,
+                on-chain treasury. You never need a token to run a single agent.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <Link
+                href="/token"
+                className="font-mono text-xs px-4 py-2.5 border border-border text-text-primary hover:border-text-secondary transition-colors"
+              >
+                Token page →
+              </Link>
+              <Link
+                href="/token/stake"
+                className="font-mono text-xs px-4 py-2.5 border border-border text-text-secondary hover:text-text-primary hover:border-text-secondary transition-colors"
+              >
+                Staking
+              </Link>
+              <Link
+                href="/token/treasury"
+                className="font-mono text-xs px-4 py-2.5 border border-border text-text-secondary hover:text-text-primary hover:border-text-secondary transition-colors"
+              >
+                Treasury
+              </Link>
+            </div>
+          </div>
+        </RevealItem>
+      </Reveal>
     </div>
   );
 }
@@ -556,13 +507,7 @@ export default function Home() {
             </RevealItem>
 
             <RevealItem>
-              <div className="mt-6 flex justify-center">
-                <TokenPill />
-              </div>
-            </RevealItem>
-
-            <RevealItem>
-              <p className="mt-5 text-xs font-mono text-text-secondary">
+              <p className="mt-7 text-xs font-mono text-text-secondary">
                 macOS · Apple Silicon · Signed with Apple Developer ID
               </p>
             </RevealItem>
@@ -896,6 +841,9 @@ export default function Home() {
             </div>
           </Reveal>
         </div>
+
+        {/* ===== $GRID (optional) ============================== */}
+        <TokenStrip />
 
         {/* ===== Final CTA ===================================== */}
         <section className="cv-auto relative overflow-hidden py-24 sm:py-36 border-t border-border">

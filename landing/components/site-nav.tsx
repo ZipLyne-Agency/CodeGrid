@@ -81,7 +81,6 @@ export function SiteNav() {
   const isActive = (href: string) =>
     !href.startsWith("/#") && (pathname === href || pathname.startsWith(href + "/"));
   const groupActive = (group: { href: string }[]) => group.some((l) => isActive(l.href));
-  const gridActive = pathname === "/token" || pathname.startsWith("/token/");
 
   const pill = "px-3 py-1.5 rounded-full font-mono text-xs transition-colors";
   const inactive = "text-text-secondary hover:text-text-primary hover:bg-white/[0.06]";
@@ -154,46 +153,11 @@ export function SiteNav() {
             </Link>
           ))}
 
-          {/* $GRID — token, staking, treasury & policy in one place. Tinted
-              accent + live dot: the public, on-chain surfaces are a credibility
-              signal, so the group earns a promoted slot. */}
-          <div className="relative">
-            <button
-              onClick={() => setMenu(menu === "grid" ? null : "grid")}
-              className={`${pill} inline-flex items-center gap-1.5 border ${
-                menu === "grid" || gridActive
-                  ? "border-accent/60 bg-accent/15 text-accent"
-                  : "border-accent/30 bg-accent/[0.06] text-accent hover:bg-accent/12 hover:border-accent/50"
-              }`}
-              aria-expanded={menu === "grid"}
-            >
-              <span className="round-full w-1.5 h-1.5 inline-block bg-status-running pulse-glow" aria-hidden />
-              $GRID
-              <span className={`text-[8px] transition-transform duration-200 ${menu === "grid" ? "rotate-180" : ""}`}>▾</span>
-            </button>
-            {menu === "grid" && (
-              <div className="absolute right-0 mt-3 w-64 rounded-xl border border-white/10 bg-bg-secondary/95 backdrop-blur-xl ring-1 ring-black/40 shadow-[0_24px_56px_-16px_rgba(0,0,0,0.8)] overflow-hidden p-1.5">
-                {grid.map((l) => (
-                  <Link
-                    key={l.label}
-                    href={l.href}
-                    className={`block px-3 py-2 rounded-lg font-mono text-xs transition-colors ${
-                      isActive(l.href) ? "text-accent bg-accent/10" : "text-text-secondary hover:text-text-primary hover:bg-white/[0.06]"
-                    }`}
-                  >
-                    {l.label}
-                    {l.hint && (
-                      <span className="block mt-0.5 text-[10px] text-text-secondary/70 font-normal normal-case">
-                        {l.hint}
-                      </span>
-                    )}
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-
           <Dropdown id="resources" label="Resources" items={resources} />
+          {/* $GRID — token, staking, treasury & policy in one place. Kept as a
+              plain dropdown (not a promoted, accent slot): the product is the
+              focus, the token is optional and one click away for those who want it. */}
+          <Dropdown id="grid" label="$GRID" items={grid} />
           <Dropdown id="company" label="Company" items={company} />
 
           <a href={GITHUB} target="_blank" rel="noopener noreferrer" className={`${pill} ${inactive}`}>GitHub</a>
@@ -228,22 +192,18 @@ export function SiteNav() {
               </Link>
             ))}
 
-            {/* $GRID — token, staking & treasury, promoted with a live dot. */}
-            <div className="flex items-center gap-2 px-4 pt-3 pb-1 font-mono text-[10px] font-bold tracking-widest uppercase text-accent">
-              <span className="round-full w-1.5 h-1.5 inline-block bg-status-running pulse-glow" aria-hidden />
-              $GRID
-            </div>
-            {grid.map((l) => (
-              <Link key={l.label} href={l.href} className={`block px-4 py-2.5 rounded-xl font-mono text-sm transition-colors ${isActive(l.href) ? "text-accent bg-accent/10" : "text-accent/90 hover:bg-accent/[0.06]"}`}>
-                {l.label}
-                {l.hint && <span className="block text-text-secondary text-[11px] font-normal">{l.hint}</span>}
-              </Link>
-            ))}
-
             <div className="px-4 pt-3 pb-1 font-mono text-[10px] font-bold tracking-widest text-text-secondary uppercase">Resources</div>
             {resources.map((l) => (
               <Link key={l.label} href={l.href} className={`block px-4 py-2.5 rounded-xl font-mono text-sm transition-colors ${isActive(l.href) ? "text-accent bg-accent/10" : "text-text-secondary hover:bg-white/[0.06]"}`}>
                 {l.label}
+              </Link>
+            ))}
+
+            <div className="px-4 pt-3 pb-1 font-mono text-[10px] font-bold tracking-widest text-text-secondary uppercase">$GRID</div>
+            {grid.map((l) => (
+              <Link key={l.label} href={l.href} className={`block px-4 py-2.5 rounded-xl font-mono text-sm transition-colors ${isActive(l.href) ? "text-accent bg-accent/10" : "text-text-secondary hover:bg-white/[0.06]"}`}>
+                {l.label}
+                {l.hint && <span className="block text-text-secondary/70 text-[11px] font-normal">{l.hint}</span>}
               </Link>
             ))}
 
