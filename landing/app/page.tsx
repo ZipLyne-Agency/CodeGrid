@@ -28,6 +28,7 @@ const AGENT_COLORS: Record<string, string> = {
   GEMINI: "#4285f4",
   GROK: "#cbd5e1",
   CURSOR: "#a855f7",
+  VENICE: "#14b8a6",
   SHELL: "#4a9eff",
 };
 
@@ -128,7 +129,7 @@ const statusColor: Record<string, string> = {
 /* ------------------------------------------------------------------ */
 
 const stats: { value: string; label: string }[] = [
-  { value: "5", label: "Coding agents supported" },
+  { value: "6", label: "Coding agents supported" },
   { value: "∞", label: "Canvases · sessions" },
   { value: "0", label: "Telemetry · accounts" },
   { value: "MIT", label: "Open source" },
@@ -142,7 +143,7 @@ const features = [
   {
     icon: "⊕",
     title: "5 AI Agents, One Workspace",
-    desc: "Run Claude, Codex, Gemini, Cursor, and plain shells side by side. Mix and match — use the best model for each task without switching apps.",
+    desc: "Run Claude, Codex, Gemini, Grok, Cursor, Venice, and plain shells side by side. Mix and match — use the best model for each task without switching apps.",
     wide: true,
   },
   {
@@ -227,7 +228,7 @@ const shortcuts = [
 const objections = [
   {
     q: "Does it work with my existing CLI tools?",
-    a: "Yes — CodeGrid doesn’t replace anything. It launches the same Claude, Codex, Gemini, Cursor, and shell workflows you already use inside real PTYs. No wrappers, no lock-in, no migration.",
+    a: "Yes — CodeGrid doesn’t replace anything. It launches the same Claude, Codex, Gemini, Grok, Cursor, Venice, and shell workflows you already use inside real PTYs. No wrappers, no lock-in, no migration.",
   },
   {
     q: "How do I know when an agent needs my input?",
@@ -285,6 +286,7 @@ const agents: { name: string; cli: string; color: string; key: string }[] = [
   { name: "Gemini", cli: "gemini", color: AGENT_COLORS.GEMINI, key: "GEMINI" },
   { name: "Grok", cli: "grok", color: AGENT_COLORS.GROK, key: "GROK" },
   { name: "Cursor", cli: "cursor-agent", color: AGENT_COLORS.CURSOR, key: "CURSOR" },
+  { name: "Venice", cli: "venice", color: AGENT_COLORS.VENICE, key: "VENICE" },
   { name: "Shell", cli: "$SHELL", color: AGENT_COLORS.SHELL, key: "SHELL" },
 ];
 
@@ -301,7 +303,7 @@ const trustPillars: { h: string; d: string; href: string; icon: string }[] = [
 
 const steps = [
   { step: "01", title: "Launch CodeGrid", desc: "Open the app and start from a clean workspace designed for fast multi-session terminal workflows." },
-  { step: "02", title: "Pick your agents", desc: "Add panes for Claude, Codex, Gemini, Cursor, or a plain shell. Each pane connects to its own project directory." },
+  { step: "02", title: "Pick your agents", desc: "Add panes for Claude, Codex, Gemini, Grok, Cursor, Venice, or a plain shell. Each pane connects to its own project directory." },
   { step: "03", title: "Arrange and ship", desc: "Organize your canvas layout, use Git tools from the sidebar, and move changes forward without leaving the app." },
 ];
 
@@ -464,7 +466,7 @@ export default function Home() {
             <RevealItem>
               <p className="mt-6 max-w-2xl mx-auto text-text-secondary text-sm sm:text-base leading-relaxed">
                 Give every project its own infinite canvas, then fill it with Claude, Codex,
-                Gemini, Grok, Cursor, and shells running side by side. Drag, resize, and zoom
+                Gemini, Grok, Cursor, Venice, and shells running side by side. Drag, resize, and zoom
                 to see all your agents at once and switch between project canvases with a
                 keystroke. No more juggling a dozen windows, tabs, and desktops.
               </p>
@@ -525,7 +527,7 @@ export default function Home() {
               transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
             >
               <WindowFrame title="CodeGrid — workspace">
-                <div className="relative w-full aspect-video bg-black scanlines">
+                <div className="relative w-full aspect-video bg-bg-primary scanlines">
                   <MuxPlayer
                     playbackId={HERO_MUX_PLAYBACK_ID}
                     streamType="on-demand"
@@ -587,7 +589,7 @@ export default function Home() {
             <SectionHead
               eyebrow="Features"
               title="Built for multi-agent, parallel workflows"
-              sub="Everything you need to run Claude, Codex, Gemini, and Cursor from a single workspace — without terminal sprawl."
+              sub="Everything you need to run Claude, Codex, Gemini, Grok, Cursor, and Venice from a single workspace — without terminal sprawl."
             />
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-px bg-border border border-border">
               {features.map((f) => (
@@ -618,7 +620,7 @@ export default function Home() {
             <SectionHead
               eyebrow="The canvas"
               title="Every agent. Every project. At a glance."
-              sub="Claude, Codex, Gemini, Cursor, and shells — all visible on one canvas, all running in parallel."
+              sub="Claude, Codex, Gemini, Grok, Cursor, Venice, and shells — all visible on one canvas, all running in parallel."
             />
             <div className="relative">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px bg-border border border-border">
