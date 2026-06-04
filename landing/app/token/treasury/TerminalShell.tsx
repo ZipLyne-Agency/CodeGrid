@@ -29,6 +29,7 @@ import {
   GRID_TREASURY_ADDRESS,
 } from "@/lib/token";
 import { type ViewId } from "./views";
+import { DashboardTabs } from "../DashboardTabs";
 
 // Re-export the view type for back-compat with any consumer importing it here.
 export type { ViewId } from "./views";
@@ -119,12 +120,7 @@ export function TerminalShell({
             <span className="traffic" style={{ background: "#febc2e" }} />
             <span className="traffic" style={{ background: "#28c840" }} />
           </div>
-          <div className="terminal-title">
-            <span className="text-text-secondary">treasury@grid</span>
-            <span className="text-text-secondary opacity-60">:~/</span>
-            <span className="text-accent">{view}</span>
-            <span className="cursor-blink text-accent">▍</span>
-          </div>
+          <DashboardTabs active="treasury" />
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -135,12 +131,6 @@ export function TerminalShell({
             >
               {sidebarOpen ? "✕" : "☰"}
             </button>
-            <Link
-              href="/token"
-              className="hidden sm:inline font-mono text-[11px] text-text-secondary hover:text-accent"
-            >
-              ← /token
-            </Link>
           </div>
         </header>
 

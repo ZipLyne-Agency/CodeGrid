@@ -419,26 +419,46 @@ function TokenPill() {
         </span>
       </button>
 
-      {/* Treasury access — the headline action of this pill. Styled as a real,
-          launchable terminal so it's obvious you can open the live, public
-          treasury (a transparency / credibility signal, not just a link). */}
+      {/* Stake — the headline action. Staking $GRID is how you unlock CodeGrid
+          Pro, so it gets the loudest, most obvious slot in the pill. */}
+      <Link
+        href="/token/stake"
+        title="Stake $GRID on Base to unlock CodeGrid Pro — you always keep your principal"
+        className="group flex items-center justify-between gap-2 px-3 py-2.5 border-t border-accent/30 bg-accent/[0.12] hover:bg-accent/[0.2] transition-colors"
+      >
+        <span className="flex items-center gap-2 font-mono text-xs min-w-0">
+          <span className="text-accent font-semibold shrink-0" aria-hidden>▶_</span>
+          <span className="text-text-primary font-semibold truncate">
+            Stake $GRID
+          </span>
+          <span className="hidden sm:inline text-text-secondary truncate">
+            → unlock CodeGrid Pro
+          </span>
+        </span>
+        <span className="font-mono text-[11px] font-semibold text-accent group-hover:text-accent-hover transition-colors shrink-0 inline-flex items-center gap-1">
+          Stake
+          <span className="transition-transform group-hover:translate-x-0.5">→</span>
+        </span>
+      </Link>
+
+      {/* Treasury — secondary, quieter row. The live, public terminal is a
+          transparency signal, one tap away. */}
       <Link
         href="/token/treasury"
         title="Open the live $GRID treasury terminal — balance, claim history, policy"
-        className="group flex items-center justify-between gap-2 px-3 py-2.5 border-t border-accent/30 bg-accent/[0.08] hover:bg-accent/[0.16] transition-colors"
+        className="group flex items-center justify-between gap-2 px-3 py-2 border-t border-accent/20 hover:bg-accent/[0.06] transition-colors"
       >
         <span className="flex items-center gap-2 font-mono text-xs min-w-0">
           <span
             className="round-full w-1.5 h-1.5 inline-block bg-status-running pulse-glow shrink-0"
             aria-hidden
           />
-          <span className="text-accent font-semibold shrink-0" aria-hidden>▶_</span>
-          <span className="text-text-primary font-semibold truncate">
+          <span className="text-text-secondary truncate">
             Open the live treasury terminal
           </span>
         </span>
-        <span className="font-mono text-[11px] font-semibold text-accent group-hover:text-accent-hover transition-colors shrink-0 inline-flex items-center gap-1">
-          <span className="hidden sm:inline text-text-secondary font-normal uppercase tracking-widest text-[10px]">live · on-chain</span>
+        <span className="font-mono text-[11px] text-text-secondary group-hover:text-accent transition-colors shrink-0 inline-flex items-center gap-1">
+          <span className="hidden sm:inline font-normal uppercase tracking-widest text-[10px]">live · on-chain</span>
           <span className="transition-transform group-hover:translate-x-0.5">→</span>
         </span>
       </Link>
@@ -481,14 +501,7 @@ export default function Home() {
 
           <Reveal className={`${WRAP} text-center`}>
             <RevealItem>
-              <span className="inline-flex items-center gap-2 font-mono text-[11px] font-semibold px-3 py-1 border border-border text-text-secondary bg-bg-secondary/60 backdrop-blur-sm">
-                <span className="round-full w-1.5 h-1.5 inline-block bg-status-running" />
-                Free &amp; open source · Signed macOS app
-              </span>
-            </RevealItem>
-
-            <RevealItem>
-              <h1 className="mt-6 font-display text-[2.25rem] leading-[1.05] sm:text-5xl md:text-6xl font-bold tracking-tight">
+              <h1 className="font-display text-[2.25rem] leading-[1.05] sm:text-5xl md:text-6xl font-bold tracking-tight">
                 An army of coding agents.{" "}
                 <span className="relative inline-block text-accent">
                   A canvas per project.
@@ -501,7 +514,7 @@ export default function Home() {
               <p className="mt-6 max-w-2xl mx-auto text-text-secondary text-sm sm:text-base leading-relaxed">
                 Give every project its own infinite canvas, then fill it with Claude, Codex,
                 Gemini, Grok, Cursor, and shells running side by side. Drag, resize, and zoom
-                to see all your agents at once — and switch between project canvases with a
+                to see all your agents at once and switch between project canvases with a
                 keystroke. No more juggling a dozen windows, tabs, and desktops.
               </p>
             </RevealItem>

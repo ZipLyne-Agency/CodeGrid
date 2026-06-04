@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {useEffect, useMemo, useRef, useState} from "react";
 import {motion, animate, useMotionValue, useReducedMotion} from "framer-motion";
+import {DashboardTabs} from "../DashboardTabs";
 import {
   useAccount,
   useConnect,
@@ -283,12 +284,7 @@ export function StakeClient() {
             <span className="traffic" style={{background: "#febc2e"}} />
             <span className="traffic" style={{background: "#28c840"}} />
           </div>
-          <div className="terminal-title">
-            <span className="text-text-secondary">stake@grid</span>
-            <span className="text-text-secondary opacity-60">:~/</span>
-            <span className="text-accent">{view}</span>
-            <span className="cursor-blink text-accent">▍</span>
-          </div>
+          <DashboardTabs active="stake" />
           <div className="flex items-center gap-2">
             <ConnectChip d={d} />
             <button
