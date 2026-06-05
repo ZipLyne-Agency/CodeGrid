@@ -12,6 +12,7 @@
 import {
   GRID_TOKEN_ADDRESS,
   GRID_TREASURY_ADDRESS,
+  USDC_BASE_ADDRESS,
   WETH_BASE_ADDRESS,
 } from "./token";
 
@@ -65,6 +66,8 @@ export interface TreasuryBalances {
   ethWei: string;
   /** WETH ERC-20 balance, raw wei (string). */
   wethWei: string;
+  /** USDC ERC-20 balance, raw (6 decimals) as a bigint-string. */
+  usdcRaw: string;
   /** $GRID ERC-20 balance, raw wei (string). */
   gridWei: string;
   /** Outgoing nonce — proxy for "has the wallet done anything yet". */
@@ -198,10 +201,14 @@ function hexToBigInt(hex: string): bigint {
  * Base RPC. No API key required. Throws if the RPC is unreachable.
  */
 export async function getTreasuryBalances(): Promise<TreasuryBalances> {
-  const [ethHex, wethHex, gridHex, nonceHex] = await Promise.all([
+  const [ethHex, wethHex, usdcHex, gridHex, nonceHex] = await Promise.all([
     rpc<string>("eth_getBalance", [GRID_TREASURY_ADDRESS, "latest"]),
     rpc<string>("eth_call", [
       { to: WETH_BASE_ADDRESS, data: encodeBalanceOf(GRID_TREASURY_ADDRESS) },
+      "latest",
+    ]),
+    rpc<string>("eth_call", [
+      { to: USDC_BASE_ADDRESS, data: encodeBalanceOf(GRID_TREASURY_ADDRESS) },
       "latest",
     ]),
     rpc<string>("eth_call", [
@@ -214,6 +221,7 @@ export async function getTreasuryBalances(): Promise<TreasuryBalances> {
   return {
     ethWei: hexToBigInt(ethHex).toString(),
     wethWei: hexToBigInt(wethHex).toString(),
+    usdcRaw: hexToBigInt(usdcHex).toString(),
     gridWei: hexToBigInt(gridHex).toString(),
     nonce: Number(hexToBigInt(nonceHex)),
     fetchedAt: Date.now(),

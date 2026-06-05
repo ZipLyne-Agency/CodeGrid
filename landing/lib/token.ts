@@ -26,6 +26,9 @@ export const GRID_TREASURY_ADDRESS =
 /** Canonical WETH (Base) — the wrapped-ETH token paired with GRID in the pool. */
 export const WETH_BASE_ADDRESS = "0x4200000000000000000000000000000000000006";
 
+/** Native USDC (Base) — Circle's official USDC on Base. 6 decimals. */
+export const USDC_BASE_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+
 export interface TokenLink {
   /** Display name. */
   name: string;

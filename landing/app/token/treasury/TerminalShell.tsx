@@ -53,7 +53,7 @@ interface ViewDef {
 
 const VIEWS: ViewDef[] = [
   { id: "status", cmd: "status", label: "Overview", desc: "Health & totals" },
-  { id: "balances", cmd: "balances", label: "Balances", desc: "WETH · GRID · ETH" },
+  { id: "balances", cmd: "balances", label: "Balances", desc: "WETH · USDC · GRID · ETH" },
   { id: "claims", cmd: "claims --weth-grid", label: "Claims log", desc: "Recent on-chain claims · WETH + GRID only" },
   { id: "allocations", cmd: "allocations", label: "Allocations", desc: "How fees are used" },
   { id: "policy", cmd: "cat POLICY.md", label: "Policy", desc: "Full treasury policy" },
@@ -308,9 +308,11 @@ interface Totals {
   weth: number;
   grid: number;
   eth: number;
+  usdc: number;
   wethUsd: number | null;
   gridUsd: number | null;
   ethUsd: number | null;
+  usdcUsd: number | null;
   totalUsd: number | null;
 }
 
@@ -321,14 +323,18 @@ function computeTotals(
   const weth = balances ? fromWei(balances.wethWei) : 0;
   const grid = balances ? fromWei(balances.gridWei) : 0;
   const eth = balances ? fromWei(balances.ethWei) : 0;
+  // USDC is a 6-decimal token. As a USD stablecoin its value ≈ its balance,
+  // so no external price feed is needed for the USD figure.
+  const usdc = balances ? fromWei(balances.usdcRaw, 6) : 0;
   const wethUsd = prices.ethUsd !== null ? weth * prices.ethUsd : null;
   const ethUsd = prices.ethUsd !== null ? eth * prices.ethUsd : null;
   const gridUsd = prices.gridUsd !== null ? grid * prices.gridUsd : null;
+  const usdcUsd = balances ? usdc : null;
   const totalUsd =
-    wethUsd !== null && ethUsd !== null && gridUsd !== null
-      ? wethUsd + ethUsd + gridUsd
+    wethUsd !== null && ethUsd !== null && gridUsd !== null && usdcUsd !== null
+      ? wethUsd + ethUsd + gridUsd + usdcUsd
       : null;
-  return { weth, grid, eth, wethUsd, gridUsd, ethUsd, totalUsd };
+  return { weth, grid, eth, usdc, wethUsd, gridUsd, ethUsd, usdcUsd, totalUsd };
 }
 
 function StatusView({
@@ -372,13 +378,20 @@ function StatusView({
         </div>
       </AsciiBox>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-px bg-border border border-border">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-border border border-border">
         <BigTile
           label="WETH"
           accent="#4a9eff"
           n={totals.weth}
           usd={totals.wethUsd}
           tag="money side"
+        />
+        <BigTile
+          label="USDC"
+          accent="#2775ca"
+          n={totals.usdc}
+          usd={totals.usdcUsd}
+          tag="stablecoin"
         />
         <BigTile
           label="GRID"
@@ -462,6 +475,13 @@ function BalancesView({
             note="from doppler pool · money side of every swap fee"
           />
           <RowAsset
+            sym="USDC"
+            color="#2775ca"
+            n={totals.usdc}
+            usd={totals.usdcUsd}
+            note="stablecoin · 1 USDC ≈ $1"
+          />
+          <RowAsset
             sym="GRID"
             color="#00c853"
             n={totals.grid}
@@ -493,6 +513,9 @@ function BalancesView({
         <div className="font-mono text-[11px] text-text-secondary space-y-1">
           <div>
             wethWei = <span className="text-text-primary">{balances.wethWei}</span>
+          </div>
+          <div>
+            usdcRaw = <span className="text-text-primary">{balances.usdcRaw}</span>
           </div>
           <div>
             gridWei = <span className="text-text-primary">{balances.gridWei}</span>
@@ -1285,6 +1308,7 @@ function RowAsset({
 function CompositionBar({ totals }: { totals: Totals }) {
   const parts = [
     { sym: "WETH", color: "#4a9eff", usd: totals.wethUsd ?? 0 },
+    { sym: "USDC", color: "#2775ca", usd: totals.usdcUsd ?? 0 },
     { sym: "GRID", color: "#00c853", usd: totals.gridUsd ?? 0 },
     { sym: "ETH", color: "#a855f7", usd: totals.ethUsd ?? 0 },
   ];
