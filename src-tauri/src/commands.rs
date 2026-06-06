@@ -3291,6 +3291,11 @@ pub struct McpServerConfig {
 pub struct McpConfigFile {
     #[serde(rename = "mcpServers", default)]
     pub mcp_servers: std::collections::HashMap<String, McpServerEntry>,
+    /// Servers toggled off in the MCP manager. They are MOVED here out of
+    /// `mcpServers` so agent CLIs (which only read `mcpServers`) genuinely stop
+    /// loading them — an in-place `"disabled": true` flag is ignored by every agent.
+    #[serde(rename = "disabledMcpServers", default)]
+    pub disabled_mcp_servers: std::collections::HashMap<String, McpServerEntry>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -3411,6 +3416,15 @@ fn push_json_mcp_file(
             }
             out.push(mcp_from_entry(name, entry, scope, path, agent, writable));
         }
+        // Servers stashed in disabledMcpServers — surface them as disabled.
+        for (name, entry) in &config.disabled_mcp_servers {
+            if out.iter().any(|s| s.agent == agent && s.name == *name && s.scope == scope) {
+                continue;
+            }
+            let mut entry = entry.clone();
+            entry.disabled = Some(true);
+            out.push(mcp_from_entry(name, &entry, scope, path, agent, writable));
+        }
     }
 }
 
@@ -3487,13 +3501,18 @@ fn push_claude_json(out: &mut Vec<McpServerConfig>, path: &str, project_dir: Opt
         Err(_) => return,
     };
 
-    // Top-level mcpServers → global scope.
-    if let Some(servers) = doc.get("mcpServers").and_then(|v| v.as_object()) {
+    // Top-level mcpServers → global scope. disabledMcpServers holds entries the
+    // manager toggled off (moved out so the Claude CLI stops loading them).
+    for (map_key, is_disabled) in [("mcpServers", false), ("disabledMcpServers", true)] {
+        let Some(servers) = doc.get(map_key).and_then(|v| v.as_object()) else { continue };
         for (name, val) in servers {
             if out.iter().any(|s| s.agent == "claude" && s.name == *name && s.scope == "global") {
                 continue;
             }
-            if let Ok(entry) = serde_json::from_value::<McpServerEntry>(val.clone()) {
+            if let Ok(mut entry) = serde_json::from_value::<McpServerEntry>(val.clone()) {
+                if is_disabled {
+                    entry.disabled = Some(true);
+                }
                 out.push(mcp_from_entry(name, &entry, "global", path, "claude", true));
             }
         }
@@ -3508,15 +3527,20 @@ fn push_claude_json(out: &mut Vec<McpServerConfig>, path: &str, project_dir: Opt
                     continue;
                 }
             }
-            let Some(servers) = proj_val.get("mcpServers").and_then(|v| v.as_object()) else { continue };
-            for (name, val) in servers {
-                if out.iter().any(|s| s.agent == "claude" && s.name == *name && s.scope == "project") {
-                    continue;
-                }
-                if let Ok(entry) = serde_json::from_value::<McpServerEntry>(val.clone()) {
-                    // Note the originating project in source_file for clarity.
-                    let src = format!("{path} (projects.{proj_path})");
-                    out.push(mcp_from_entry(name, &entry, "project", &src, "claude", true));
+            for (map_key, is_disabled) in [("mcpServers", false), ("disabledMcpServers", true)] {
+                let Some(servers) = proj_val.get(map_key).and_then(|v| v.as_object()) else { continue };
+                for (name, val) in servers {
+                    if out.iter().any(|s| s.agent == "claude" && s.name == *name && s.scope == "project") {
+                        continue;
+                    }
+                    if let Ok(mut entry) = serde_json::from_value::<McpServerEntry>(val.clone()) {
+                        if is_disabled {
+                            entry.disabled = Some(true);
+                        }
+                        // Note the originating project in source_file for clarity.
+                        let src = format!("{path} (projects.{proj_path})");
+                        out.push(mcp_from_entry(name, &entry, "project", &src, "claude", true));
+                    }
                 }
             }
         }
@@ -3528,10 +3552,10 @@ pub async fn list_mcps(project_dir: Option<String>) -> Result<Vec<McpServerConfi
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
     let mut servers: Vec<McpServerConfig> = Vec::new();
 
-    let validated_dir = match &project_dir {
-        Some(pdir) => Some(validate_dir(pdir)?),
-        None => None,
-    };
+    // A stale project dir (deleted worktree, removed recent, focused pane whose
+    // cwd is gone) shouldn't kill the whole listing — fall back to global-only
+    // instead of erroring out with "Directory does not exist".
+    let validated_dir = project_dir.as_deref().and_then(|pdir| validate_dir(pdir).ok());
 
     // ===== CLAUDE =====
     // Canonical store: ~/.claude.json (top-level + projects.<dir>.mcpServers).
@@ -3608,36 +3632,94 @@ pub async fn save_mcp_config(
     Ok(())
 }
 
+/// Split an annotated source_file ("~/.claude.json (projects./Users/x/proj)")
+/// into the real file path and the optional projects.<dir> key the entry lives
+/// under inside ~/.claude.json.
+fn split_mcp_config_path(config_path: &str) -> (String, Option<String>) {
+    if let Some(idx) = config_path.find(" (projects.") {
+        let path = config_path[..idx].to_string();
+        let rest = &config_path[idx + " (projects.".len()..];
+        let key = rest.strip_suffix(')').unwrap_or(rest).to_string();
+        (path, Some(key))
+    } else {
+        (config_path.to_string(), None)
+    }
+}
+
+/// Resolve the object that holds mcpServers/disabledMcpServers — the document
+/// root, or a projects.<dir> sub-object for project-scoped ~/.claude.json entries.
+fn mcp_container<'a>(
+    doc: &'a mut serde_json::Value,
+    project_key: &Option<String>,
+    file_path: &str,
+) -> Result<&'a mut serde_json::Map<String, serde_json::Value>, String> {
+    match project_key {
+        Some(key) => doc
+            .get_mut("projects")
+            .and_then(|p| p.get_mut(key.as_str()))
+            .and_then(|v| v.as_object_mut())
+            .ok_or_else(|| format!("Project '{key}' not found in {file_path}")),
+        None => doc.as_object_mut().ok_or_else(|| "Config is not an object".to_string()),
+    }
+}
+
 #[tauri::command]
 pub async fn toggle_mcp_server(
     config_path: String,
     server_name: String,
     enabled: bool,
 ) -> Result<(), String> {
-    validate_mcp_config_path(&config_path)?;
-    let content = std::fs::read_to_string(&config_path)
+    let (file_path, project_key) = split_mcp_config_path(&config_path);
+    validate_mcp_config_path(&file_path)?;
+    let content = std::fs::read_to_string(&file_path)
         .map_err(|e| format!("Failed to read config: {e}"))?;
     let cleaned = strip_json_comments(&content);
     let mut doc: serde_json::Value = serde_json::from_str(&cleaned)
         .map_err(|e| format!("Failed to parse config: {e}"))?;
 
-    let servers = doc.get_mut("mcpServers")
-        .and_then(|v| v.as_object_mut())
-        .ok_or_else(|| format!("No mcpServers found in {config_path}"))?;
+    let container = mcp_container(&mut doc, &project_key, &file_path)?;
 
-    let server = servers.get_mut(&server_name)
-        .and_then(|v| v.as_object_mut())
-        .ok_or_else(|| format!("Server '{server_name}' not found in {config_path}"))?;
-
-    if enabled {
-        server.remove("disabled");
+    // Toggling MOVES the entry between `mcpServers` and a sibling
+    // `disabledMcpServers` stash. Agent CLIs only read `mcpServers`, so this
+    // genuinely stops a disabled server from loading — the old in-place
+    // `"disabled": true` flag was ignored by Claude/Cursor/Gemini.
+    let (from, to) = if enabled {
+        ("disabledMcpServers", "mcpServers")
     } else {
-        server.insert("disabled".to_string(), serde_json::Value::Bool(true));
+        ("mcpServers", "disabledMcpServers")
+    };
+
+    let mut entry = container
+        .get_mut(from)
+        .and_then(|v| v.as_object_mut())
+        .and_then(|m| m.remove(&server_name));
+    // Legacy: entries disabled in place (flag inside mcpServers) by older builds.
+    if entry.is_none() && enabled {
+        entry = container
+            .get_mut("mcpServers")
+            .and_then(|v| v.as_object_mut())
+            .and_then(|m| m.remove(&server_name));
+    }
+    let mut entry = entry.ok_or_else(|| format!("Server '{server_name}' not found in {config_path}"))?;
+    if let Some(obj) = entry.as_object_mut() {
+        obj.remove("disabled"); // drop the legacy in-place flag either way
+    }
+
+    container
+        .entry(to.to_string())
+        .or_insert_with(|| serde_json::json!({}))
+        .as_object_mut()
+        .ok_or_else(|| format!("'{to}' in {file_path} is not an object"))?
+        .insert(server_name, entry);
+
+    // Don't leave an empty stash key behind.
+    if container.get("disabledMcpServers").and_then(|v| v.as_object()).is_some_and(|m| m.is_empty()) {
+        container.remove("disabledMcpServers");
     }
 
     let json = serde_json::to_string_pretty(&doc)
         .map_err(|e| format!("Failed to serialize: {e}"))?;
-    atomic_write_string(Path::new(&config_path), &format!("{json}\n"))?;
+    atomic_write_string(Path::new(&file_path), &format!("{json}\n"))?;
     Ok(())
 }
 
@@ -3646,24 +3728,33 @@ pub async fn remove_mcp_server(
     config_path: String,
     server_name: String,
 ) -> Result<(), String> {
-    validate_mcp_config_path(&config_path)?;
-    let content = std::fs::read_to_string(&config_path)
+    let (file_path, project_key) = split_mcp_config_path(&config_path);
+    validate_mcp_config_path(&file_path)?;
+    let content = std::fs::read_to_string(&file_path)
         .map_err(|e| format!("Failed to read config: {e}"))?;
     let cleaned = strip_json_comments(&content);
     let mut doc: serde_json::Value = serde_json::from_str(&cleaned)
         .map_err(|e| format!("Failed to parse config: {e}"))?;
 
-    let servers = doc.get_mut("mcpServers")
-        .and_then(|v| v.as_object_mut())
-        .ok_or_else(|| format!("No mcpServers found in {config_path}"))?;
+    let container = mcp_container(&mut doc, &project_key, &file_path)?;
 
-    if servers.remove(&server_name).is_none() {
+    // The entry may live in either map depending on its toggle state.
+    let removed = ["mcpServers", "disabledMcpServers"].iter().any(|key| {
+        container
+            .get_mut(*key)
+            .and_then(|v| v.as_object_mut())
+            .is_some_and(|m| m.remove(&server_name).is_some())
+    });
+    if !removed {
         return Err(format!("Server '{server_name}' not found in {config_path}"));
+    }
+    if container.get("disabledMcpServers").and_then(|v| v.as_object()).is_some_and(|m| m.is_empty()) {
+        container.remove("disabledMcpServers");
     }
 
     let json = serde_json::to_string_pretty(&doc)
         .map_err(|e| format!("Failed to serialize: {e}"))?;
-    atomic_write_string(Path::new(&config_path), &format!("{json}\n"))?;
+    atomic_write_string(Path::new(&file_path), &format!("{json}\n"))?;
     Ok(())
 }
 

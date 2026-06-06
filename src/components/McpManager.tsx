@@ -19,6 +19,42 @@ function tildify(p: string): string {
   return p.replace(/^\/Users\/[^/]+/, "~").replace(/^\/home\/[^/]+/, "~");
 }
 
+// --- Secret redaction --------------------------------------------------------
+// Server configs routinely embed API keys in args (`--api-key sk-…`), URLs
+// (`?api_key=…`) and key=value pairs. Mask them in the list by default; a
+// per-row eye button reveals the raw string on demand.
+
+function maskToken(v: string): string {
+  if (v.length <= 6) return "•".repeat(v.length);
+  return `${v.slice(0, 4)}••••••`;
+}
+
+function redactSecrets(s: string): string {
+  let out = s;
+  // Known key formats: OpenAI/Anthropic/Stripe (sk-…), GitHub (ghp_/gho_/PAT),
+  // GitLab, Slack, AWS access keys, JWTs.
+  out = out.replace(
+    /\b(sk-[A-Za-z0-9_-]{8,}|[sp]k_(?:live|test)_[A-Za-z0-9]{8,}|gh[pousr]_[A-Za-z0-9]{8,}|github_pat_[A-Za-z0-9_]{8,}|glpat-[A-Za-z0-9_-]{8,}|xox[bpars]-[A-Za-z0-9-]{8,}|AKIA[A-Z0-9]{12,}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]+)\b/g,
+    maskToken,
+  );
+  // name=value pairs (query params, env-style args) with secret-ish names.
+  out = out.replace(
+    /([?&]|\b)([A-Za-z0-9_-]*(?:key|token|secret|auth|password|passwd|credential)[A-Za-z0-9_-]*)=([^&\s"']+)/gi,
+    (_m, sep, name, val) => `${sep}${name}=${maskToken(val)}`,
+  );
+  // Value following a secret-ish CLI flag: --api-key XXXX, --token XXXX.
+  out = out.replace(
+    /(--?[A-Za-z0-9-]*(?:key|token|secret|auth|password)[A-Za-z0-9-]*)(\s+)([^-\s]\S*)/gi,
+    (_m, flag, ws, val) => `${flag}${ws}${maskToken(val)}`,
+  );
+  // Generic catch-all: standalone long alphanumeric tokens containing both
+  // letters and digits (UUID-ish / random-key-ish), outside path/package names.
+  out = out.replace(/(?<![\w/@.•-])[A-Za-z0-9_-]{20,}(?![\w/@.•-])/g, (m) =>
+    /\d/.test(m) && /[A-Za-z]/.test(m) ? maskToken(m) : m,
+  );
+  return out;
+}
+
 interface McpPreset {
   name: string;
   command: string;
@@ -193,6 +229,8 @@ export const McpManager = memo(function McpManager() {
 
   const addToast = useToastStore((s) => s.addToast);
   const [showPresets, setShowPresets] = useState(false);
+  // Rows whose secrets are revealed; always reopens masked.
+  const [revealed, setRevealed] = useState<Set<string>>(new Set());
   const dir = mcpManagerDir ?? undefined;
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -211,7 +249,10 @@ export const McpManager = memo(function McpManager() {
   }, [dir]);
 
   useEffect(() => {
-    if (mcpManagerOpen) refresh();
+    if (mcpManagerOpen) {
+      setRevealed(new Set());
+      refresh();
+    }
   }, [mcpManagerOpen, refresh]);
 
   const flash = (msg: string) => {
@@ -220,17 +261,15 @@ export const McpManager = memo(function McpManager() {
     flashTimerRef.current = setTimeout(() => setSuccess(null), 2000);
   };
 
-  // Strip any annotation suffix the backend adds to source_file (e.g.
-  // "~/.claude.json (projects./Users/isaac)") so writes target a real path.
-  const writePath = (srv: McpServerConfig) => srv.source_file.replace(/\s+\(projects\..*\)$/, "");
-
+  // Pass source_file as-is — the backend parses the "(projects.<dir>)"
+  // annotation to route writes to the right section of ~/.claude.json.
   const handleToggle = useCallback(async (srv: McpServerConfig) => {
     if (!srv.writable) {
       setError(`${srv.name} is view-only (${srv.agent} stores MCP servers in TOML).`);
       return;
     }
     try {
-      await toggleMcpServer(writePath(srv), srv.name, !srv.enabled);
+      await toggleMcpServer(srv.source_file, srv.name, !srv.enabled);
       flash(`${srv.name} ${srv.enabled ? "disabled" : "enabled"}`);
       await refresh();
     } catch (e) { setError(String(e)); }
@@ -242,7 +281,7 @@ export const McpManager = memo(function McpManager() {
       return;
     }
     try {
-      await removeMcpServer(writePath(srv), srv.name);
+      await removeMcpServer(srv.source_file, srv.name);
       flash(`Removed ${srv.name}`);
       await refresh();
     } catch (e) { setError(String(e)); }
@@ -615,9 +654,15 @@ export const McpManager = memo(function McpManager() {
                     )}
                   </div>
 
-                  {list.map((srv) => (
+                  {list.map((srv) => {
+                    const rowKey = `${srv.agent}-${srv.scope}-${srv.name}`;
+                    const rawDetail = srv.type === "http" ? (srv.url ?? "http") : `${srv.command} ${srv.args.join(" ")}`;
+                    const maskedDetail = redactSecrets(rawDetail);
+                    const hasSecrets = maskedDetail !== rawDetail;
+                    const isRevealed = revealed.has(rowKey);
+                    return (
                     <div
-                      key={`${srv.agent}-${srv.scope}-${srv.name}`}
+                      key={rowKey}
                       style={{
                         display: "flex", alignItems: "center", padding: "8px 16px", gap: "10px",
                         borderBottom: "1px solid var(--bg-tertiary)", opacity: srv.enabled ? 1 : 0.5,
@@ -659,8 +704,28 @@ export const McpManager = memo(function McpManager() {
                             color: srv.type === "http" ? "var(--status-waiting)" : "var(--text-muted)",
                           }}>{srv.type === "http" ? "HTTP" : "STDIO"}</span>
                         </div>
-                        <div style={{ color: "var(--text-faint)", fontSize: "10px", marginTop: "1px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {srv.type === "http" ? (srv.url ?? "http") : `${srv.command} ${srv.args.join(" ")}`}
+                        <div style={{ display: "flex", alignItems: "center", gap: "5px", marginTop: "1px" }}>
+                          <span style={{ color: "var(--text-faint)", fontSize: "10px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {isRevealed ? rawDetail : maskedDetail}
+                          </span>
+                          {hasSecrets && (
+                            <button
+                              onClick={() => setRevealed((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(rowKey)) next.delete(rowKey); else next.add(rowKey);
+                                return next;
+                              })}
+                              title={isRevealed ? "Hide secrets" : "Reveal secrets"}
+                              aria-label={isRevealed ? `Hide secrets for ${srv.name}` : `Reveal secrets for ${srv.name}`}
+                              style={{
+                                background: "none", border: "none", padding: 0, cursor: "pointer",
+                                display: "inline-flex", alignItems: "center", color: isRevealed ? "var(--status-waiting)" : "var(--text-faint)",
+                                flexShrink: 0,
+                              }}
+                            >
+                              {isRevealed ? <UI_ICON.eyeSlash size={12} weight="regular" /> : <UI_ICON.eye size={12} weight="regular" />}
+                            </button>
+                          )}
                         </div>
                         <div style={{ color: "var(--border-strong)", fontSize: "9px", marginTop: "1px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {tildify(srv.source_file)}
@@ -678,7 +743,8 @@ export const McpManager = memo(function McpManager() {
                         >REMOVE</button>
                       )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               );
             })
