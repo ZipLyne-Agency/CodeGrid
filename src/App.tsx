@@ -321,7 +321,10 @@ export default function App() {
       try {
         const placement = await getSetting("terminal_list_placement");
         if (placement === "sidebar" || placement === "topbar") {
-          useWorkspaceStore.getState().setTerminalListPlacement(placement);
+          // Set directly — setTerminalListPlacement pops the drawer open as a
+          // "look where your terminals went" affordance, which we don't want
+          // on a silent launch-time restore.
+          useWorkspaceStore.setState({ terminalListPlacement: placement });
         }
       } catch { /* default: topbar */ }
 

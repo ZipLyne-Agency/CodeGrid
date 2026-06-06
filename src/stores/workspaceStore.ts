@@ -44,10 +44,10 @@ interface WorkspaceState {
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   workspaces: [],
   activeWorkspaceId: null,
-  sidebarOpen: true,
+  sidebarOpen: false,
   activePanel: "files" as ActivityPanel,
   terminalListPlacement: "sidebar",
-  terminalDrawerOpen: true,
+  terminalDrawerOpen: false,
   settingsOpen: false,
   commandPaletteOpen: false,
   paneSwitcherOpen: false,
