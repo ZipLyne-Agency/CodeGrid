@@ -946,7 +946,10 @@ export const Canvas = memo(function Canvas({ width, height, onCloseSession }: Ca
         </div>
 
         {/* Bottom bar — fleet status · resource recommendation · view controls.
-            Pulled out of the canvas itself into one clean dock. */}
+            Pulled out of the canvas itself into one clean dock.
+            z-index sits ABOVE the pan overlay (950) so PAN/FIT/AUTO stay
+            clickable while pan mode is on — otherwise the overlay swallows the
+            click and PAN can't be toggled back off. */}
         <div
           style={{
             position: "absolute",
@@ -956,7 +959,7 @@ export const Canvas = memo(function Canvas({ width, height, onCloseSession }: Ca
             display: "flex",
             alignItems: "center",
             gap: 6,
-            zIndex: 120,
+            zIndex: 1000,
             padding: "4px 8px",
             background: "rgba(13,13,13,0.82)",
             border: "1px solid var(--border-default)",
