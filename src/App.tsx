@@ -25,6 +25,7 @@ const DependencyGraph   = lazy(() => import("./components/DependencyGraph").then
 const ReviewPanel       = lazy(() => import("./components/ReviewPanel").then(m => ({ default: m.ReviewPanel })));
 const ProFeaturesModal  = lazy(() => import("./components/ProFeaturesModal").then(m => ({ default: m.ProFeaturesModal })));
 const Onboarding        = lazy(() => import("./components/Onboarding").then(m => ({ default: m.Onboarding })));
+const Tour              = lazy(() => import("./components/Tour").then(m => ({ default: m.Tour })));
 const ResourceWarningDialog = lazy(() => import("./components/ResourceWarningDialog").then(m => ({ default: m.ResourceWarningDialog })));
 import { useSessionStore } from "./stores/sessionStore";
 import { sanitizeWorkspaceView, useLayoutStore } from "./stores/layoutStore";
@@ -58,7 +59,10 @@ import {
   getPersistedSessions,
   clearPersistedSessions,
   getSystemMemory,
+  voiceToolResponse,
 } from "./lib/ipc";
+import { useVoiceStore, bindVoiceToWorkspaceSwitches } from "./stores/voiceStore";
+import { jumpToSession } from "./lib/jumpToSession";
 import { useResourceStore } from "./stores/resourceStore";
 import { startAutoUpdateChecks } from "./lib/updater";
 import { UpdateBanner } from "./components/UpdateBanner";
@@ -148,21 +152,29 @@ export default function App() {
   useNativeMenu();
   useEntitlement();
 
-  // First-run onboarding (and re-openable via Help → Getting Started).
+  // First-run onboarding (and re-openable via Help → Getting Started), plus
+  // the post-onboarding spotlight tour over the real UI.
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showTour, setShowTour] = useState(false);
   useEffect(() => {
     getSetting("onboarded")
       .then((v) => { if (v !== "true") setShowOnboarding(true); })
       .catch(() => {});
     const reopen = () => setShowOnboarding(true);
+    const startTour = () => setShowTour(true);
     window.addEventListener("codegrid:show-onboarding", reopen);
-    return () => window.removeEventListener("codegrid:show-onboarding", reopen);
+    window.addEventListener("codegrid:start-tour", startTour);
+    return () => {
+      window.removeEventListener("codegrid:show-onboarding", reopen);
+      window.removeEventListener("codegrid:start-tour", startTour);
+    };
   }, []);
 
-  const finishOnboarding = useCallback((openNewSession: boolean) => {
+  const finishOnboarding = useCallback((action: "none" | "project" | "tour") => {
     setShowOnboarding(false);
     setSetting("onboarded", "true").catch(() => {});
-    if (openNewSession) useWorkspaceStore.getState().setNewSessionDialogOpen(true);
+    if (action === "project") useWorkspaceStore.getState().setNewSessionDialogOpen(true);
+    if (action === "tour") setShowTour(true);
   }, []);
 
   // Self-heal session↔layout desync: any session in the active workspace that
@@ -950,6 +962,106 @@ export default function App() {
     };
   }, [handleCreateSession]);
 
+  // ── CodeGrid Voice: Rust session events → store; spawn/focus round-trips ──
+  useEffect(() => {
+    const unlistens: (() => void)[] = [];
+    let cancelled = false;
+
+    (async () => {
+      const { listen } = await import("@tauri-apps/api/event");
+      if (cancelled) return;
+      const voice = () => useVoiceStore.getState();
+
+      unlistens.push(
+        await listen<{ status: string; detail: string | null }>("voice-status", (e) => {
+          voice().applyStatus(e.payload.status as any, e.payload.detail ?? null);
+        }),
+        await listen<{ role: "user" | "assistant"; text: string; final: boolean }>(
+          "voice-transcript",
+          (e) => voice().applyTranscript(e.payload),
+        ),
+        await listen<any>("voice-tool-call", (e) => voice().applyToolCall(e.payload)),
+        await listen<{ paused: boolean }>("voice-mic", (e) => voice().applyMic(e.payload.paused)),
+
+        // "Show me the Codex pane" — reuse the canonical reveal path.
+        await listen<{ sessionId: string }>("voice-focus-pane", (e) => {
+          jumpToSession(e.payload.sessionId);
+        }),
+
+        // close_agent: Rust killed the PTY; drop the pane from the canvas too
+        // (mirrors what the manual close button does after killSession).
+        await listen<{ sessionId: string }>("voice-close-pane", (e) => {
+          removeSession(e.payload.sessionId);
+          removePaneLayout(e.payload.sessionId);
+        }),
+
+        // Rust-side idle settler flipped a pane (it detects "agent done" even
+        // while this webview's timers are throttled in the background) — keep
+        // the store in sync so tab dots don't lag until refocus.
+        await listen<{ sessionId: string; status: string }>("session-status-changed", (e) => {
+          useSessionStore.getState().updateSession(e.payload.sessionId, { status: e.payload.status as any });
+        }),
+
+        // Max writing a note / opening a preview — reuse the exact paths the
+        // "+ New" menu uses (notes and browser panes are React-owned synthetics).
+        await listen<{ seedText: string }>("voice-create-note", (e) => {
+          window.dispatchEvent(new CustomEvent("codegrid:new-note-pane", { detail: { seedText: e.payload.seedText } }));
+        }),
+        await listen<{ url: string }>("voice-open-browser", (e) => {
+          window.dispatchEvent(new CustomEvent("codegrid:new-browser-pane", { detail: { url: e.payload.url } }));
+        }),
+
+        // spawn_agent round-trip: pane layout lives here, so Rust asks us to
+        // create the session and ship the SessionInfo back via voice_tool_response.
+        await listen<{
+          requestId: string;
+          workspaceId: string;
+          agentType: string;
+          workingDir?: string | null;
+        }>("voice-spawn-agent", (e) => {
+          const { requestId, workspaceId, agentType, workingDir } = e.payload;
+          void (async () => {
+            try {
+              const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === workspaceId);
+              const dir =
+                workingDir ||
+                ws?.repo_path ||
+                useSessionStore.getState().sessions.find(
+                  (s) => s.workspace_id === workspaceId && s.status !== "dead",
+                )?.working_dir;
+              if (!dir) {
+                await voiceToolResponse(requestId, {
+                  error: "No working directory — open a project in this workspace first.",
+                });
+                return;
+              }
+              const session =
+                agentType === "shell"
+                  ? await spawnShellSession(dir, workspaceId)
+                  : await createSession(dir, workspaceId, false, false, agentType as any);
+              addSession(session);
+              if (workspaceId === useWorkspaceStore.getState().activeWorkspaceId) {
+                addPaneLayout(session.id, { nearSessionId: mostRecentTerminalId(workspaceId) });
+                setFocusedSession(session.id);
+                revealSession(session.id);
+              }
+              await voiceToolResponse(requestId, session);
+            } catch (err) {
+              await voiceToolResponse(requestId, { error: String(err) }).catch(() => {});
+            }
+          })();
+        }),
+      );
+    })();
+
+    const unbindWs = bindVoiceToWorkspaceSwitches();
+    return () => {
+      cancelled = true;
+      unlistens.forEach((u) => u());
+      unbindWs();
+    };
+  }, [addSession, addPaneLayout, setFocusedSession, mostRecentTerminalId, removeSession, removePaneLayout]);
+
   // Restart a dead/restored session — replaces the dead entry with a live one
   useEffect(() => {
     const handler = async (e: Event) => {
@@ -1232,6 +1344,7 @@ export default function App() {
           onForceCreate={handleForceCreateSession}
         />
         {showOnboarding && <Onboarding onClose={finishOnboarding} />}
+        {showTour && !showOnboarding && <Tour onClose={() => setShowTour(false)} />}
       </Suspense>
       <ToastContainer />
       <UpdateBanner />

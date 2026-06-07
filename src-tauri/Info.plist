@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Merged into the bundle's Info.plist by Tauri. Required for the native
+         mic-permission prompt that cpal triggers on first voice session. -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>CodeGrid Voice uses the microphone so you can control your agents by speaking. Audio is streamed to OpenAI only while a voice session is active.</string>
+</dict>
+</plist>

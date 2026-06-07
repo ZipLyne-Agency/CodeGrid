@@ -7,6 +7,7 @@ mod native_ui;
 mod pty_manager;
 mod rpc_server;
 mod session;
+mod voice;
 mod workspace;
 mod worktree;
 
@@ -25,6 +26,20 @@ pub fn run() {
     let _ = env_setup::apply();
 
     let app = tauri::Builder::default()
+        .plugin(
+            // Global hotkey backbone for voice: the "summon Max" key (app-wide,
+            // registered from settings) and push-to-talk (per PTT session).
+            // voice::on_global_shortcut tells them apart.
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, shortcut, event| {
+                    voice::on_global_shortcut(
+                        app,
+                        shortcut,
+                        matches!(event.state, tauri_plugin_global_shortcut::ShortcutState::Pressed),
+                    );
+                })
+                .build(),
+        )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_process::init())
@@ -83,12 +98,34 @@ pub fn run() {
                 db,
                 sessions: TokioMutex::new(Vec::new()),
                 connect_signals: TokioMutex::new(std::collections::HashMap::new()),
+                last_output: std::sync::Mutex::new(std::collections::HashMap::new()),
             });
             _app.manage(state);
+            _app.manage(Arc::new(voice::VoiceManager::default()));
 
             // Start JSON-RPC Unix socket server
             let handle = _app.handle().clone();
             tauri::async_runtime::spawn(rpc_server::start_rpc_server(handle));
+
+            // Register the app-wide "summon Max" hotkey from settings.
+            voice::register_summon_from_settings(_app.handle());
+
+            // Rust-side agent-settled detection — works while the webview's
+            // timers are throttled in the background (user in another app).
+            voice::spawn_idle_settler(_app.handle().clone());
+
+            // Ask for Notification Center permission up front so Max's
+            // background announcements can also surface as native banners
+            // (works across every workspace, even with no voice session).
+            {
+                use tauri_plugin_notification::NotificationExt;
+                match _app.notification().permission_state() {
+                    Ok(tauri_plugin_notification::PermissionState::Granted) => {}
+                    _ => {
+                        let _ = _app.notification().request_permission();
+                    }
+                }
+            }
 
             Ok(())
         })
@@ -248,10 +285,26 @@ pub fn run() {
             commands::get_active_diff,
             commands::run_review,
             analytics::get_coding_analytics,
+            // Voice control (Pro, BYOK OpenAI Realtime)
+            voice::voice_start,
+            voice::voice_stop,
+            voice::voice_state,
+            voice::voice_set_api_key,
+            voice::voice_key_status,
+            voice::voice_clear_api_key,
+            voice::voice_set_mic_paused,
+            voice::voice_set_summon,
+            voice::voice_request_notifications,
+            voice::voice_tool_response,
 
         ])
         // Intercept close (red X / Cmd+Q) → show confirmation if sessions are running.
         .on_window_event(|window, event| {
+            // Voice focus gating: in "focused" mode the mic stream is paused
+            // the moment CodeGrid stops being the frontmost window.
+            if let WindowEvent::Focused(focused) = event {
+                voice::on_window_focus(window.app_handle(), *focused);
+            }
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
 
@@ -309,6 +362,7 @@ pub fn run() {
         match event {
             RunEvent::Exit => {
                 eprintln!("[CodeGrid] App exiting, cleaning up PTY sessions");
+                voice::shutdown(app_handle);
                 rpc_server::cleanup();
                 if let Some(state) = app_handle.try_state::<Arc<AppState>>() {
                     state.pty_manager.kill_all();

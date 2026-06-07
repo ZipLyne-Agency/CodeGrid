@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useSessionStore } from "../stores/sessionStore";
 import { jumpToSession } from "../lib/jumpToSession";
@@ -83,6 +84,21 @@ export const TerminalSidebar = memo(function TerminalSidebar({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [confirmKillAll, setConfirmKillAll] = useState(false);
+  // Right-click context menu on a pane row (Rename / Close).
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; id: string; name: string } | null>(null);
+  const ctxRef = useRef<HTMLDivElement>(null);
+
+  // Close the row context menu on outside click or Escape.
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const close = (e: MouseEvent | KeyboardEvent) => {
+      if (e instanceof KeyboardEvent) { if (e.key === "Escape") setCtxMenu(null); return; }
+      if (ctxRef.current && !ctxRef.current.contains(e.target as Node)) setCtxMenu(null);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", close);
+    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", close); };
+  }, [ctxMenu]);
 
   // Track running→idle transitions for "done" flash animations (parity w/ top bar).
   const prevStatusRef = useRef<Map<string, string>>(new Map());
@@ -197,9 +213,20 @@ export const TerminalSidebar = memo(function TerminalSidebar({
         className={isPulsing ? "tab-done-highlight" : undefined}
         onClick={() => { onFocusSession(session.id); jumpToSession(session.id); }}
         onDoubleClick={() => { setEditingId(session.id); setEditName(displayName); }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          // Clamp so the menu can't overflow the right-docked drawer's edge.
+          setCtxMenu({
+            x: Math.min(e.clientX, window.innerWidth - 180),
+            y: Math.min(e.clientY, window.innerHeight - 110),
+            id: session.id,
+            name: displayName,
+          });
+        }}
         onMouseEnter={() => setHoveredId(session.id)}
         onMouseLeave={() => setHoveredId(null)}
-        title={`Double-click to rename · ${session.working_dir}`}
+        title={`Double-click or right-click to rename · ${session.working_dir}`}
         style={{
           display: "flex",
           alignItems: "center",
@@ -366,7 +393,14 @@ export const TerminalSidebar = memo(function TerminalSidebar({
                   setTimeout(() => setConfirmKillAll(false), 3000);
                   return;
                 }
-                terminalTabs.forEach((s) => onCloseSession(s.id));
+                // The "Confirm?" second click above IS the aggregate confirm —
+                // force-close each terminal directly. Routing through
+                // onCloseSession would funnel N kills into the single-slot
+                // per-pane confirm dialog, which collapses a bulk kill down to
+                // closing just one terminal.
+                terminalTabs.forEach((s) =>
+                  window.dispatchEvent(new CustomEvent("codegrid:force-close-session", { detail: { sessionId: s.id } })),
+                );
                 setConfirmKillAll(false);
               }}
               title="Close every terminal in this workspace"
@@ -484,6 +518,44 @@ export const TerminalSidebar = memo(function TerminalSidebar({
           </button>
         </div>
       </div>
+
+      {/* Row context menu — Rename / Close (mirrors the top-bar tab menu) */}
+      {ctxMenu && createPortal(
+        <div
+          ref={ctxRef}
+          style={{
+            position: "fixed", top: ctxMenu.y, left: ctxMenu.x, zIndex: 9999,
+            background: "#1e1e1e", border: "1px solid #2a2a2a",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.6)", fontFamily: "var(--font-ui)",
+            minWidth: 160, padding: "4px 0", borderRadius: 6,
+          }}
+        >
+          <div style={{ padding: "4px 12px", fontSize: 10, color: "#555555", letterSpacing: "1px", borderBottom: "1px solid #2a2a2a", marginBottom: 2 }}>
+            TERMINAL
+          </div>
+          <button
+            onClick={() => { setEditingId(ctxMenu.id); setEditName(ctxMenu.name); setCtxMenu(null); }}
+            style={{ display: "block", width: "100%", textAlign: "left", background: "transparent", border: "none", color: "#e0e0e0", fontSize: 11, fontFamily: "var(--font-ui)", padding: "6px 14px", cursor: "pointer" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "#ff8c0020"; e.currentTarget.style.color = "#ff8c00"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#e0e0e0"; }}
+          >
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+              <UI_ICON.rename size={13} weight="regular" style={{ flexShrink: 0 }} /> Rename
+            </span>
+          </button>
+          <button
+            onClick={() => { onCloseSession(ctxMenu.id); setCtxMenu(null); }}
+            style={{ display: "block", width: "100%", textAlign: "left", background: "transparent", border: "none", color: "#ff3d00", fontSize: 11, fontFamily: "var(--font-ui)", padding: "6px 14px", cursor: "pointer" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "#ff3d0020"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+          >
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+              <UI_ICON.trash size={13} weight="regular" style={{ flexShrink: 0 }} /> Close Terminal
+            </span>
+          </button>
+        </div>,
+        document.body,
+      )}
     </>
   );
 });

@@ -80,6 +80,7 @@ export const CanvasControls = memo(function CanvasControls() {
         <button
           ref={newBtnRef}
           data-new-btn
+          data-tour="new-button"
           onClick={() => setNewMenuOpen((o) => !o)}
           title="New… (Cmd+N)"
           style={{

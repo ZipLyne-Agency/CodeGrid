@@ -15,6 +15,10 @@ pub struct AppState {
     pub db: Database,
     pub sessions: TokioMutex<Vec<Session>>,
     pub connect_signals: TokioMutex<std::collections::HashMap<String, tokio::sync::oneshot::Sender<()>>>,
+    /// Last PTY output instant per session — drives the Rust-side "agent
+    /// settled" detection (the webview's timers throttle when the app is in
+    /// the background, so "done" must be decided here, not in JS).
+    pub last_output: std::sync::Mutex<std::collections::HashMap<String, std::time::Instant>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -335,6 +339,9 @@ exec aider --model openai/claude-sonnet-4-6 --edit-format diff --no-auto-commits
         // Now stream all output (mpsc unbounded channel has been buffering)
         while let Some(data) = rx.recv().await {
             count += data.len() as u64;
+            if let Ok(mut last) = state_for_task.last_output.lock() {
+                last.insert(sid.clone(), std::time::Instant::now());
+            }
             if count <= 1000 || count % 10000 < 100 {
                 eprintln!("[CodeGrid] Session {} emitting {} bytes (total: {})", sid, data.len(), count);
             }
@@ -348,12 +355,29 @@ exec aider --model openai/claude-sonnet-4-6 --edit-format diff --no-auto-commits
         }
         eprintln!("[CodeGrid] Session {sid} ended (total bytes: {count})");
         state_for_task.connect_signals.lock().await.remove(&sid);
+        if let Ok(mut last) = state_for_task.last_output.lock() {
+            last.remove(&sid);
+        }
         let _ = state_for_task.pty_manager.remove_session(&sid);
-        {
+        let died = {
             let mut sessions = state_for_task.sessions.lock().await;
-            if let Some(s) = sessions.iter_mut().find(|s| s.id == sid) {
+            sessions.iter_mut().find(|s| s.id == sid).map(|s| {
                 s.status = SessionStatus::Dead;
-            }
+                (s.workspace_id.clone(), s.pane_number, s.command.clone())
+            })
+        };
+        // Natural death (still in the roster → not an intentional kill):
+        // let Max tell the user. Settings-gated inside on_agent_event.
+        if let Some((ws, pane, command)) = died {
+            crate::voice::on_agent_event(
+                &app_handle,
+                &ws,
+                &sid,
+                pane,
+                &agent_label(&command),
+                crate::voice::AgentEvent::Died,
+                None,
+            );
         }
         let _ = app_handle.emit(
             "session-ended",
@@ -388,9 +412,15 @@ pub async fn kill_session(
     state: State<'_, Arc<AppState>>,
     session_id: String,
 ) -> Result<(), String> {
+    kill_session_impl(&state, &session_id).await
+}
+
+/// Shared teardown used by the `kill_session` command and the voice agent's
+/// `close_agent` tool — keeps PTY/DB/worktree cleanup in one place.
+pub(crate) async fn kill_session_impl(state: &AppState, session_id: &str) -> Result<(), String> {
     // Clean up the connect signal so the buffering task unblocks immediately
     // instead of waiting for the 5-second timeout
-    let signal = state.connect_signals.lock().await.remove(&session_id);
+    let signal = state.connect_signals.lock().await.remove(session_id);
     if let Some(tx) = signal {
         let _ = tx.send(());
     }
@@ -398,13 +428,13 @@ pub async fn kill_session(
     // Don't abort on a missing PTY: a naturally-exited ("dead") terminal has
     // already had its PTY drained, but we still must delete its DB row and remove
     // any worktree below — otherwise the dead session resurrects on next launch.
-    let _ = state.pty_manager.kill_session(&session_id);
+    let _ = state.pty_manager.kill_session(session_id);
 
     let mut sessions = state.sessions.lock().await;
     if let Some(pos) = sessions.iter().position(|s| s.id == session_id) {
         let session = sessions.remove(pos);
         drop(sessions);
-        let _ = state.db.delete_session(&session_id);
+        let _ = state.db.delete_session(session_id);
 
         // Clean up worktree if applicable
         if let Some(wt_path) = &session.worktree_path {
@@ -472,27 +502,84 @@ pub async fn rename_session(
 
 #[tauri::command]
 pub async fn update_session_status(
+    app: AppHandle,
     state: State<'_, Arc<AppState>>,
     session_id: String,
     status: String,
 ) -> Result<(), String> {
-    let mut sessions = state.sessions.lock().await;
-    if let Some(session) = sessions.iter_mut().find(|s| s.id == session_id) {
-        session.status = match status.as_str() {
-            "idle" => SessionStatus::Idle,
-            "running" => SessionStatus::Running,
-            "waiting" => SessionStatus::Waiting,
-            "error" => SessionStatus::Error,
-            "dead" => SessionStatus::Dead,
-            _ => return Err(format!("Invalid status: {status}")),
-        };
-        // Don't re-persist ephemeral (scratch) sessions — a status write must not
-        // resurrect a DB row we deliberately keep out of the database.
-        if !is_ephemeral_workspace(&session.workspace_id) {
-            let _ = state.db.save_session(session);
+    let new_status = match status.as_str() {
+        "idle" => SessionStatus::Idle,
+        "running" => SessionStatus::Running,
+        "waiting" => SessionStatus::Waiting,
+        "error" => SessionStatus::Error,
+        "dead" => SessionStatus::Dead,
+        _ => return Err(format!("Invalid status: {status}")),
+    };
+
+    // Capture the transition (old → new) for the voice announcer.
+    let mut transition: Option<(String, u32, String, SessionStatus, String)> = None;
+    {
+        let mut sessions = state.sessions.lock().await;
+        if let Some(session) = sessions.iter_mut().find(|s| s.id == session_id) {
+            let old = session.status.clone();
+            session.status = new_status.clone();
+            // Don't re-persist ephemeral (scratch) sessions — a status write must not
+            // resurrect a DB row we deliberately keep out of the database.
+            if !is_ephemeral_workspace(&session.workspace_id) {
+                let _ = state.db.save_session(session);
+            }
+            if old != new_status {
+                transition = Some((
+                    session.workspace_id.clone(),
+                    session.pane_number,
+                    session.command.clone(),
+                    old,
+                    session.created_at.clone(),
+                ));
+            }
         }
     }
+
+    // Voice: Max announces meaningful transitions (settings-gated in voice.rs).
+    if let Some((ws, pane, command, old, created_at)) = transition {
+        // A pane settling to idle right after spawn is the TUI finishing its
+        // BOOT, not finishing a task — don't announce those.
+        let just_booted = chrono::DateTime::parse_from_rfc3339(&created_at)
+            .map(|t| (chrono::Utc::now() - t.with_timezone(&chrono::Utc)).num_seconds() < 30)
+            .unwrap_or(false);
+        let event = match (&old, &new_status) {
+            (SessionStatus::Running, SessionStatus::Idle) if just_booted => None,
+            (SessionStatus::Running, SessionStatus::Idle) => Some(crate::voice::AgentEvent::Finished),
+            (o, SessionStatus::Waiting) if !matches!(o, SessionStatus::Waiting) => {
+                Some(crate::voice::AgentEvent::NeedsAttention)
+            }
+            (o, SessionStatus::Error) if !matches!(o, SessionStatus::Error) => {
+                Some(crate::voice::AgentEvent::Errored)
+            }
+            _ => None,
+        };
+        if let Some(event) = event {
+            let agent = agent_label(&command);
+            let tail = state
+                .pty_manager
+                .read_output(&session_id, 1500)
+                .map(|b| crate::voice::strip_ansi(&b));
+            crate::voice::on_agent_event(&app, &ws, &session_id, pane, &agent, event, tail);
+        }
+    }
+
     Ok(())
+}
+
+/// Short agent label from a session's command — for voice announcements.
+fn agent_label(command: &str) -> String {
+    let c = command.to_lowercase();
+    for kind in ["claude", "codex", "gemini", "cursor", "grok", "venice"] {
+        if c.contains(kind) {
+            return kind.to_string();
+        }
+    }
+    "shell".to_string()
 }
 
 // === Workspace Commands ===

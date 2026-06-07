@@ -979,3 +979,60 @@ export function onSessionEnded(
     callback(event.payload);
   });
 }
+
+// ── Voice control (Pro, BYOK OpenAI Realtime) ──────────────────────────────
+
+export interface VoiceState {
+  active: boolean;
+  workspaceId?: string;
+  micPaused?: boolean;
+  elapsedMs?: number;
+}
+
+export async function voiceStart(workspaceId: string): Promise<void> {
+  return invoke("voice_start", { workspaceId });
+}
+
+export async function voiceStop(): Promise<void> {
+  return invoke("voice_stop");
+}
+
+export async function voiceState(): Promise<VoiceState> {
+  return invoke("voice_state");
+}
+
+export async function voiceSetApiKey(key: string): Promise<void> {
+  return invoke("voice_set_api_key", { key });
+}
+
+export async function voiceKeyStatus(): Promise<boolean> {
+  return invoke("voice_key_status");
+}
+
+export async function voiceClearApiKey(): Promise<void> {
+  return invoke("voice_clear_api_key");
+}
+
+export async function voiceSetMicPaused(paused: boolean): Promise<void> {
+  return invoke("voice_set_mic_paused", { paused });
+}
+
+/** Reply to a Rust-initiated voice tool round-trip (spawn_agent). */
+export async function voiceToolResponse(requestId: string, result: unknown): Promise<void> {
+  return invoke("voice_tool_response", { requestId, result });
+}
+
+/** Copy text to the system clipboard (via Rust — webview clipboard is unreliable). */
+export async function clipboardWrite(text: string): Promise<void> {
+  return invoke("clipboard_write", { text });
+}
+
+/** Set (or clear, with null) the global "summon Max" hotkey — applies immediately. */
+export async function voiceSetSummon(combo: string | null): Promise<void> {
+  return invoke("voice_set_summon", { combo });
+}
+
+/** Ensure macOS notification permission (prompts if needed). Returns whether allowed. */
+export async function voiceRequestNotifications(): Promise<boolean> {
+  return invoke("voice_request_notifications");
+}

@@ -5,6 +5,7 @@
 //! `useNativeMenu` hook maps each id to the same action its keyboard shortcut
 //! triggers, so there is one source of truth for behaviour.
 
+use std::sync::Mutex;
 use tauri::{
     menu::{
         AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu,
@@ -15,6 +16,51 @@ use tauri::{
 
 /// Event channel the frontend listens on. Payload is the action id string.
 pub const MENU_EVENT: &str = "codegrid://menu";
+
+/// Handle to the tray "Talk to Max" item so its label can track voice state.
+static TALK_ITEM: Mutex<Option<MenuItem<Wry>>> = Mutex::new(None);
+
+/// Update the tray to reflect Max's live voice state — the menu-bar glyph next
+/// to the icon plus the "Talk to Max" item label. Called from voice::emit_status.
+pub fn set_max_tray(app: &AppHandle, status: &str) {
+    let (glyph, label) = match status {
+        "connecting" => ("🎙…", "■  Stop Max"),
+        "listening" => ("🎙", "■  Stop Max"),
+        "speaking" => ("🔊", "■  Stop Max"),
+        "tool" => ("⚙", "■  Stop Max"),
+        "sleeping" => ("🌙", "■  Stop Max"),
+        _ => ("", "🎙  Talk to Max"), // off / error
+    };
+    if let Ok(slot) = TALK_ITEM.lock() {
+        if let Some(item) = slot.as_ref() {
+            let _ = item.set_text(label);
+        }
+    }
+    // Prefix the fleet-status title (set_tray_status) with Max's glyph so both
+    // are visible: e.g. "🎙 ● 2". We store Max's glyph and re-render.
+    if let Ok(mut g) = MAX_GLYPH.lock() {
+        *g = glyph.to_string();
+    }
+    rerender_tray_title(app);
+}
+
+/// Current Max glyph + last fleet counts, combined into the tray title.
+static MAX_GLYPH: Mutex<String> = Mutex::new(String::new());
+static FLEET_TITLE: Mutex<String> = Mutex::new(String::new());
+
+fn rerender_tray_title(app: &AppHandle) {
+    if let Some(tray) = app.tray_by_id("codegrid-tray") {
+        let glyph = MAX_GLYPH.lock().map(|g| g.clone()).unwrap_or_default();
+        let fleet = FLEET_TITLE.lock().map(|f| f.clone()).unwrap_or_default();
+        let title = match (glyph.is_empty(), fleet.is_empty()) {
+            (true, true) => String::new(),
+            (false, true) => glyph,
+            (true, false) => fleet,
+            (false, false) => format!("{glyph} {fleet}"),
+        };
+        let _ = tray.set_title(if title.is_empty() { None } else { Some(title) });
+    }
+}
 
 /// Build the full application menu bar (App / File / Edit / View / Agents / Window / Help).
 pub fn build_menu(app: &App) -> tauri::Result<Menu<Wry>> {
@@ -193,15 +239,19 @@ pub fn build_tray(app: &App) -> tauri::Result<()> {
 /// agents needing attention (or running) next to the icon, plus a tooltip.
 #[tauri::command]
 pub fn set_tray_status(app: AppHandle, running: u32, needs: u32) {
+    let fleet = if needs > 0 {
+        format!("● {needs}")
+    } else if running > 0 {
+        format!("▶ {running}")
+    } else {
+        String::new()
+    };
+    if let Ok(mut f) = FLEET_TITLE.lock() {
+        *f = fleet;
+    }
+    // Combined Max-glyph + fleet-count title is rendered in one place.
+    rerender_tray_title(&app);
     if let Some(tray) = app.tray_by_id("codegrid-tray") {
-        let title = if needs > 0 {
-            format!("● {needs}")
-        } else if running > 0 {
-            format!("▶ {running}")
-        } else {
-            String::new()
-        };
-        let _ = tray.set_title(if title.is_empty() { None } else { Some(title) });
         let tooltip = if running == 0 && needs == 0 {
             "CodeGrid".to_string()
         } else {
@@ -220,6 +270,11 @@ pub fn handle_action(app: &AppHandle, id: &str) {
                 let _ = win.show();
                 let _ = win.set_focus();
             }
+        }
+        // Talk to Max from the menu bar — toggle the voice session without
+        // bringing the window forward (the whole point is talking from anywhere).
+        "tray_talk_max" => {
+            crate::voice::toggle_from_tray(app);
         }
         // Forward every app-level action to the frontend.
         other => {

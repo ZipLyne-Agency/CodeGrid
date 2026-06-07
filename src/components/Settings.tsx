@@ -4,7 +4,7 @@ import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useToastStore } from "../stores/toastStore";
 import { useUpdaterStore } from "../stores/updaterStore";
 import { checkForUpdates } from "../lib/updater";
-import { getSetting, setSetting, getClaudePath, getEnvAllowStatus, toggleEnvAllow, getProjectSearchRoots, setProjectSearchRoots, rescanProjectRoots, listRecentProjects } from "../lib/ipc";
+import { getSetting, setSetting, getClaudePath, getEnvAllowStatus, toggleEnvAllow, getProjectSearchRoots, setProjectSearchRoots, rescanProjectRoots, listRecentProjects, voiceSetApiKey, voiceClearApiKey, voiceKeyStatus, voiceSetSummon } from "../lib/ipc";
 import { useAppStore } from "../stores/appStore";
 import { UI_ICON, type Icon } from "../lib/icons";
 import { PremiumPanel } from "./PremiumPanel";
@@ -12,7 +12,7 @@ import { PremiumPanel } from "./PremiumPanel";
 const ACCENT = "#ff8c00";
 const MAGENTA = "#d500f9";
 
-type SectionId = "general" | "terminal" | "tools" | "shortcuts" | "premium";
+type SectionId = "general" | "terminal" | "tools" | "voice" | "shortcuts" | "premium";
 
 // --- small presentational helpers -------------------------------------------
 
@@ -77,6 +77,81 @@ function Row({
   );
 }
 
+/**
+ * Click-to-set hotkey field: click, press the combo you want, done.
+ * F-keys work bare; anything else needs a modifier (a global bare letter
+ * would swallow that key system-wide). Esc cancels.
+ */
+function HotkeyCapture({
+  value,
+  placeholder,
+  onCapture,
+  onClear,
+}: {
+  value: string;
+  placeholder?: string;
+  onCapture: (combo: string) => void;
+  onClear?: () => void;
+}) {
+  const [capturing, setCapturing] = useState(false);
+  const addToast = useToastStore((s) => s.addToast);
+  return (
+    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+      <button
+        onClick={() => setCapturing(true)}
+        onKeyDown={(e) => {
+          if (!capturing) return;
+          e.preventDefault();
+          e.stopPropagation();
+          if (e.key === "Escape") {
+            setCapturing(false);
+            return;
+          }
+          if (["Shift", "Control", "Alt", "Meta"].includes(e.key)) return;
+          const mods: string[] = [];
+          if (e.metaKey) mods.push("Cmd");
+          if (e.ctrlKey) mods.push("Ctrl");
+          if (e.altKey) mods.push("Alt");
+          if (e.shiftKey) mods.push("Shift");
+          const code = e.nativeEvent.code; // W3C: "F4", "KeyA", "Digit5", "Space"
+          const standalone = /^F\d{1,2}$/.test(code);
+          if (!standalone && mods.length === 0) {
+            addToast("Use an F-key, or add a modifier (⌘/⌃/⌥/⇧) — a bare key would be swallowed system-wide.", "warning", 4000);
+            return;
+          }
+          setCapturing(false);
+          onCapture([...mods, code].join("+"));
+        }}
+        onBlur={() => setCapturing(false)}
+        aria-label="Hotkey — click, then press the desired key"
+        style={{
+          minWidth: 150, boxSizing: "border-box", textAlign: "center",
+          background: capturing ? "rgba(255,140,0,0.10)" : "#0a0a0a",
+          border: `1px solid ${capturing ? ACCENT : "#2a2a2a"}`,
+          color: capturing ? ACCENT : value ? "var(--text-primary)" : "#666",
+          fontSize: 12, fontFamily: "var(--font-mono)", padding: "6px 10px",
+          cursor: "pointer", outline: "none", borderRadius: 4,
+        }}
+      >
+        {capturing ? "press a key…" : value || placeholder || "click to set"}
+      </button>
+      {onClear && value && (
+        <button
+          onClick={onClear}
+          title="Remove hotkey"
+          aria-label="Remove hotkey"
+          style={{
+            background: "transparent", border: "1px solid #2a2a2a", borderRadius: 4,
+            color: "#888", fontSize: 12, padding: "5px 9px", cursor: "pointer", fontFamily: "var(--font-ui)",
+          }}
+        >
+          ×
+        </button>
+      )}
+    </div>
+  );
+}
+
 /** A toggle switch matching the app's pill style. */
 function Toggle({ on, disabled }: { on: boolean; disabled?: boolean }) {
   return (
@@ -133,6 +208,20 @@ export const Settings = memo(function Settings() {
   const updateStatus = useUpdaterStore((s) => s.status);
   const updateVersion = useUpdaterStore((s) => s.version);
   const updateError = useUpdaterStore((s) => s.error);
+  // Voice (Pro, BYOK)
+  const [voiceKeySet, setVoiceKeySet] = useState(false);
+  const [voiceKeyDraft, setVoiceKeyDraft] = useState("");
+  const [voiceMode, setVoiceMode] = useState("focused");
+  const [voiceIdle, setVoiceIdle] = useState("5");
+  const [voicePttKey, setVoicePttKey] = useState("F9");
+  const [voiceHalfDuplex, setVoiceHalfDuplex] = useState(true);
+  const [voiceSummon, setVoiceSummon] = useState("");
+  const [annDone, setAnnDone] = useState(true);
+  const [annAttention, setAnnAttention] = useState(true);
+  const [annErrors, setAnnErrors] = useState(true);
+  const [annAway, setAnnAway] = useState(false);
+  const [annPush, setAnnPush] = useState(true);
+  const [annSpeak, setAnnSpeak] = useState(true);
 
   useEffect(() => {
     if (!settingsOpen) return;
@@ -142,6 +231,18 @@ export const Settings = memo(function Settings() {
         const cp = await getClaudePath();
         setClaudePath(cp);
         try { setSearchRoots(await getProjectSearchRoots()); } catch {}
+        try { setVoiceKeySet(await voiceKeyStatus()); } catch {}
+        try { setVoiceMode((await getSetting("voice_mode")) || "always"); } catch {}
+        try { setVoiceIdle((await getSetting("voice_idle_minutes")) || "5"); } catch {}
+        try { setVoicePttKey((await getSetting("voice_ptt_shortcut")) || "F9"); } catch {}
+        try { setVoiceHalfDuplex(((await getSetting("voice_half_duplex")) ?? "true") !== "false"); } catch {}
+        try { setVoiceSummon((await getSetting("voice_summon_shortcut")) || ""); } catch {}
+        try { setAnnDone((await getSetting("voice_announce_done")) !== "false"); } catch {}
+        try { setAnnAttention((await getSetting("voice_announce_attention")) !== "false"); } catch {}
+        try { setAnnErrors((await getSetting("voice_announce_errors")) !== "false"); } catch {}
+        try { setAnnAway((await getSetting("voice_announce_away")) === "true"); } catch {}
+        try { setAnnPush((await getSetting("voice_announce_push")) !== "false"); } catch {}
+        try { setAnnSpeak((await getSetting("voice_announce_speak")) !== "false"); } catch {}
         // Load env allow status
         const ws = useWorkspaceStore.getState().workspaces.find(w => w.id === useWorkspaceStore.getState().activeWorkspaceId);
         if (ws?.repo_path) {
@@ -252,6 +353,7 @@ export const Settings = memo(function Settings() {
     { id: "general", label: "General", icon: UI_ICON.settings },
     { id: "terminal", label: "Terminal", icon: UI_ICON.terminals },
     { id: "tools", label: "Tools", icon: UI_ICON.mcp },
+    { id: "voice", label: "Voice", icon: UI_ICON.mic },
     { id: "shortcuts", label: "Shortcuts", icon: UI_ICON.command },
     { id: "premium", label: "Premium", icon: UI_ICON.crown },
   ];
@@ -565,6 +667,284 @@ export const Settings = memo(function Settings() {
     );
   };
 
+  const renderVoice = () => (
+    <>
+      <SubHeader first>CodeGrid Voice</SubHeader>
+      <div style={{ color: "var(--text-muted)", fontSize: 11, marginBottom: "12px", lineHeight: 1.5, marginTop: "-4px" }}>
+        Speak to your canvas: spawn agents, send them tasks, and have their output summarized aloud.
+        Powered by OpenAI&apos;s Realtime API with your own key — usage is billed to your
+        OpenAI account, roughly $0.10/min of active conversation. The key is stored in the macOS
+        Keychain and never leaves the Rust process. Sessions are per-workspace: switching
+        workspaces ends the session.
+      </div>
+
+      {matches("openai api key") && (
+        <Row
+          label="OpenAI API key"
+          help={voiceKeySet ? "A key is saved in the Keychain." : "Required — create one at platform.openai.com."}
+          control={
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <input
+                type="password"
+                value={voiceKeyDraft}
+                onChange={(e) => setVoiceKeyDraft(e.target.value)}
+                placeholder={voiceKeySet ? "••••••••••••" : "sk-…"}
+                aria-label="OpenAI API key"
+                style={{
+                  width: 180, boxSizing: "border-box", background: "#0a0a0a", border: "1px solid #2a2a2a",
+                  color: "var(--text-primary)", fontSize: 12, fontFamily: "var(--font-mono)", padding: "6px 8px", outline: "none",
+                }}
+                onFocus={focusBorder}
+                onBlur={blurBorder}
+              />
+              <button
+                style={linkBtn}
+                onClick={async () => {
+                  try {
+                    await voiceSetApiKey(voiceKeyDraft);
+                    setVoiceKeyDraft("");
+                    setVoiceKeySet(true);
+                    addToast("Voice API key saved to Keychain.", "success");
+                  } catch (e) {
+                    addToast(String(e), "error");
+                  }
+                }}
+              >
+                Save
+              </button>
+              {voiceKeySet && (
+                <button
+                  style={linkBtn}
+                  onClick={async () => {
+                    try {
+                      await voiceClearApiKey();
+                      setVoiceKeySet(false);
+                      addToast("Voice API key removed.", "success");
+                    } catch (e) {
+                      addToast(String(e), "error");
+                    }
+                  }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          }
+        />
+      )}
+
+      {matches("listening mode") && (
+        <Row
+          label="Listening mode"
+          help={
+            voiceMode === "always"
+              ? "Recommended. While Max is on he listens continuously — talk to him from any app, even with CodeGrid in the background."
+              : voiceMode === "ptt"
+                ? "Max only listens while you hold the hotkey (or the menu-bar button) — works from any app, immune to speaker echo."
+                : "Max only listens while CodeGrid is the focused window (the macOS mic indicator turns off when you switch away)."
+          }
+          control={
+            <select
+              value={voiceMode}
+              onChange={(e) => {
+                const v = e.target.value;
+                setVoiceMode(v);
+                setSetting("voice_mode", v).catch(() => {});
+              }}
+              aria-label="Voice listening mode"
+              style={{
+                background: "#0a0a0a", border: "1px solid #2a2a2a", color: "var(--text-primary)",
+                fontSize: 12, fontFamily: "var(--font-ui)", padding: "6px 8px", outline: "none",
+              }}
+            >
+              <option value="always">Always listening (recommended)</option>
+              <option value="focused">Only while focused</option>
+              <option value="ptt">Push-to-talk (hold key)</option>
+            </select>
+          }
+        />
+      )}
+
+      {matches("summon hotkey") && (
+        <Row
+          label="Summon Max hotkey"
+          help="One key, anywhere on your Mac — even with CodeGrid in the background — starts (or stops) a voice session in the active workspace. Click the field, then press the key you want. Takes effect immediately."
+          control={
+            <HotkeyCapture
+              value={voiceSummon}
+              placeholder="click to set"
+              onCapture={(combo) => {
+                voiceSetSummon(combo)
+                  .then(() => {
+                    setVoiceSummon(combo);
+                    addToast(`Summon hotkey set to ${combo} — active now.`, "success");
+                  })
+                  .catch((e) => addToast(String(e), "error", 5000));
+              }}
+              onClear={() => {
+                voiceSetSummon(null)
+                  .then(() => {
+                    setVoiceSummon("");
+                    addToast("Summon hotkey removed.", "success");
+                  })
+                  .catch((e) => addToast(String(e), "error", 5000));
+              }}
+            />
+          }
+        />
+      )}
+
+      {voiceMode === "ptt" && matches("push-to-talk hotkey") && (
+        <Row
+          label="Push-to-talk hotkey"
+          help="HOLD this key to talk, release to send — Max's mic is dead at all other times. Global, works from any app. On default Mac keyboards F-keys need Fn held. Applies on the next voice session."
+          control={
+            <HotkeyCapture
+              value={voicePttKey}
+              onCapture={(combo) => {
+                setVoicePttKey(combo);
+                setSetting("voice_ptt_shortcut", combo).catch(() => {});
+                addToast(`Push-to-talk set to ${combo}. Restart the voice session to apply.`, "success");
+              }}
+            />
+          }
+        />
+      )}
+
+      {voiceMode !== "ptt" && matches("echo protection") && (
+        <Row
+          label="Echo protection"
+          help="Mutes the mic while the assistant is speaking so it can't hear itself through open speakers. Turn off if you use headphones and want to interrupt it mid-sentence by voice."
+          onClick={() => {
+            const next = !voiceHalfDuplex;
+            setVoiceHalfDuplex(next);
+            setSetting("voice_half_duplex", String(next)).catch(() => {});
+          }}
+          control={<Toggle on={voiceHalfDuplex} />}
+        />
+      )}
+
+      {matches("auto-stop after idle") && (
+        <Row
+          label="Auto-stop after idle"
+          help="End the session (and the metering) after this many minutes of silence — but never while agents are still running or waiting, so finish announcements always reach you, even when you're in another app."
+          control={
+            <select
+              value={voiceIdle}
+              onChange={(e) => {
+                const v = e.target.value;
+                setVoiceIdle(v);
+                setSetting("voice_idle_minutes", v).catch(() => {});
+              }}
+              aria-label="Voice idle auto-stop"
+              style={{
+                background: "#0a0a0a", border: "1px solid #2a2a2a", color: "var(--text-primary)",
+                fontSize: 12, fontFamily: "var(--font-ui)", padding: "6px 8px", outline: "none",
+              }}
+            >
+              <option value="2">2 minutes</option>
+              <option value="5">5 minutes</option>
+              <option value="10">10 minutes</option>
+              <option value="30">30 minutes</option>
+            </select>
+          }
+        />
+      )}
+
+      <SubHeader>Notifications — what to tell me about</SubHeader>
+      <div style={{ color: "var(--text-muted)", fontSize: 11, marginBottom: "4px", lineHeight: 1.5, marginTop: "-4px" }}>
+        Pick the agent events you care about. These work <b style={{ color: "var(--text-secondary)" }}>even when Max
+        (the voice) is off</b> — and across every workspace, even with CodeGrid in the background. Choose how
+        you&apos;re alerted under <i>How to alert me</i> below.
+      </div>
+
+      {matches("agent finished") && (
+        <Row
+          label="Agent finished"
+          help='When an agent completes a task — including what it got done, e.g. "Codex is done, all 47 tests passing."'
+          onClick={() => {
+            const next = !annDone;
+            setAnnDone(next);
+            setSetting("voice_announce_done", String(next)).catch(() => {});
+          }}
+          control={<Toggle on={annDone} />}
+        />
+      )}
+
+      {matches("agent needs you") && (
+        <Row
+          label="Agent needs you"
+          help="The moment an agent stops to ask a question or wait on a permission prompt — with a second reminder if it's still stuck after 2 minutes. The single biggest time-saver."
+          onClick={() => {
+            const next = !annAttention;
+            setAnnAttention(next);
+            setSetting("voice_announce_attention", String(next)).catch(() => {});
+          }}
+          control={<Toggle on={annAttention} />}
+        />
+      )}
+
+      {matches("errors and crashes") && (
+        <Row
+          label="Errors and crashes"
+          help="When an agent hits an error or its terminal dies unexpectedly."
+          onClick={() => {
+            const next = !annErrors;
+            setAnnErrors(next);
+            setSetting("voice_announce_errors", String(next)).catch(() => {});
+          }}
+          control={<Toggle on={annErrors} />}
+        />
+      )}
+
+      <SubHeader>Notifications — how to alert me</SubHeader>
+
+      {matches("desktop notifications") && (
+        <Row
+          label="Desktop notifications"
+          help="A macOS Notification Center banner for each event above. Works with Max off, in any app, in the background — your always-on safety net. (Requires allowing notifications when macOS asks.)"
+          onClick={() => {
+            const next = !annPush;
+            setAnnPush(next);
+            setSetting("voice_announce_push", String(next)).catch(() => {});
+          }}
+          control={<Toggle on={annPush} />}
+        />
+      )}
+
+      {matches("speak aloud max") && (
+        <Row
+          label="Speak aloud (Max)"
+          help="When a voice session is running, Max says each event out loud in one sentence. Turn off to keep the desktop banners but stop Max from talking."
+          onClick={() => {
+            const next = !annSpeak;
+            setAnnSpeak(next);
+            setSetting("voice_announce_speak", String(next)).catch(() => {});
+          }}
+          control={<Toggle on={annSpeak} />}
+        />
+      )}
+
+      {matches("while-you-were-away recap") && (
+        <Row
+          label="Hold voice for a recap when I'm away"
+          help="Affects Max's voice only. Instead of speaking while CodeGrid is in the background, he holds it and gives one spoken recap when you return. Desktop banners still fire immediately regardless."
+          onClick={() => {
+            const next = !annAway;
+            setAnnAway(next);
+            setSetting("voice_announce_away", String(next)).catch(() => {});
+          }}
+          control={<Toggle on={annAway} />}
+        />
+      )}
+
+      <div style={{ color: "#555", fontSize: 11, lineHeight: 1.5, borderTop: "1px solid #2a2a2a", paddingTop: "12px", marginTop: "20px" }}>
+        Notification toggles apply instantly. Mode, push-to-talk hotkey, and idle timeout
+        apply on the next voice session. The summon hotkey is always live.
+      </div>
+    </>
+  );
+
   const renderShortcuts = () => {
     const groups = ([
       ["Panes & sessions", [
@@ -705,6 +1085,7 @@ export const Settings = memo(function Settings() {
                   {section === "general" && renderGeneral()}
                   {section === "terminal" && renderTerminal()}
                   {section === "tools" && renderTools()}
+                  {section === "voice" && renderVoice()}
                   {section === "shortcuts" && renderShortcuts()}
                   {section === "premium" && <PremiumPanel />}
                 </>

@@ -44,7 +44,9 @@ interface WorkspaceState {
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   workspaces: [],
   activeWorkspaceId: null,
-  sidebarOpen: false,
+  // The sidebar always starts open on launch (users can close it after) —
+  // a fresh window with both rails closed reads as an empty app.
+  sidebarOpen: true,
   activePanel: "files" as ActivityPanel,
   terminalListPlacement: "sidebar",
   terminalDrawerOpen: false,

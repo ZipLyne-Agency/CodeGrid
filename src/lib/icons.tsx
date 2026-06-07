@@ -14,7 +14,7 @@ import {
   Sparkle, Star, Cursor, Lightning, BracketsAngle, Browser, Note, CopySimple, Waves,
   Crown, Lock, LockOpen, X, CaretDown, CaretRight, Check, Warning, Eye, EyeSlash,
   ArrowsDownUp, PencilSimple, Trash, Plugs, BookOpen, DotsThree, MagicWand,
-  Minus, CornersOut, CornersIn, GitFork,
+  Minus, CornersOut, CornersIn, GitFork, Microphone, MicrophoneSlash, Bell, BellSlash,
   type Icon, type IconWeight,
 } from "@phosphor-icons/react";
 import type { AgentKind } from "./paneTheme";
@@ -73,4 +73,8 @@ export const UI_ICON = {
   maximize:        CornersOut,
   restore:         CornersIn,
   worktree:        GitFork,
+  mic:             Microphone,
+  micOff:          MicrophoneSlash,
+  bell:            Bell,
+  bellOff:         BellSlash,
 } satisfies Record<string, Icon>;

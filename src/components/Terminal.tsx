@@ -62,7 +62,7 @@ export const TerminalView = memo(function TerminalView({ sessionId, agentColor }
   // True while the agent is blocked on a prompt (needs the user). Cleared when
   // the user types into the pane or the agent resumes producing work.
   const waitingRef = useRef(false);
-  const statusToastSentRef = useRef<{ idle: boolean; dead: boolean }>({ idle: false, dead: false });
+  const statusToastSentRef = useRef<{ sync: boolean }>({ sync: false });
   // Each terminal needs its own TextDecoder because { stream: true } maintains
   // internal state for incomplete multi-byte UTF-8 sequences.
   const textDecoderRef = useRef(new TextDecoder());
@@ -157,8 +157,19 @@ export const TerminalView = memo(function TerminalView({ sessionId, agentColor }
       if (statusRef.current === status) return;
       statusRef.current = status;
       updateSession(sessionId, { status });
+      // Mirror EVERY transition to Rust — the backend is what drives Max's
+      // "agent finished / needs you" announcements, and it can only see a
+      // running→idle edge if it was told about "running" (and "waiting") too.
+      // The guard above makes this transition-only, so it's one IPC per edge,
+      // not one per output chunk.
+      updateSessionStatus(sessionId, status).catch((err) => {
+        if (!statusToastSentRef.current.sync) {
+          statusToastSentRef.current.sync = true;
+          addToast(`Could not sync status for terminal ${sessionId.slice(0, 6)}: ${err}`, "warning", 5000);
+        }
+      });
     },
-    [sessionId, updateSession],
+    [sessionId, updateSession, addToast],
   );
 
   const handleOutput = useCallback(
@@ -238,13 +249,7 @@ export const TerminalView = memo(function TerminalView({ sessionId, agentColor }
         // A pane blocked on a prompt stays "waiting" until the user acts; going
         // quiet doesn't mean it became idle.
         if (waitingRef.current || statusRef.current === "waiting") return;
-        setSessionStatus("idle");
-        updateSessionStatus(sessionId, "idle").catch((err) => {
-          if (!statusToastSentRef.current.idle) {
-            statusToastSentRef.current.idle = true;
-            addToast(`Could not sync idle status for terminal ${sessionId.slice(0, 6)}: ${err}`, "warning", 5000);
-          }
-        });
+        setSessionStatus("idle"); // syncs to Rust (transition-gated)
       }, 10000);
     },
     [sessionId, write, flushOutput, setSessionStatus, setSessionActivityName, addToast],
@@ -259,13 +264,7 @@ export const TerminalView = memo(function TerminalView({ sessionId, agentColor }
     // doesn't render after "[Session ended]".
     if (flushTimerRef.current) { clearTimeout(flushTimerRef.current); flushTimerRef.current = null; }
     flushOutput();
-    setSessionStatus("dead");
-    updateSessionStatus(sessionId, "dead").catch((err) => {
-      if (!statusToastSentRef.current.dead) {
-        statusToastSentRef.current.dead = true;
-        addToast(`Could not sync ended status for terminal ${sessionId.slice(0, 6)}: ${err}`, "warning", 5000);
-      }
-    });
+    setSessionStatus("dead"); // syncs to Rust (transition-gated)
     write("\r\n\x1b[33m[Session ended]\x1b[0m\r\n");
   }, [sessionId, write, flushOutput, setSessionStatus, addToast]);
 

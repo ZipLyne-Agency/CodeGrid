@@ -667,19 +667,6 @@ export const Canvas = memo(function Canvas({ width, height, onCloseSession }: Ca
     document.body.style.userSelect = "none";
   }, [maximizedPane]);
 
-  const handleAutoGrid = useCallback(() => {
-    const ids = visibleSessions.map((s) => s.id);
-    autoLayout(ids, width, canvasHeight);
-    // Reset zoom/pan to origin
-    setCanvas({ zoom: 1, panX: 0, panY: 0 });
-    live.current.zoom = 1;
-    live.current.panX = 0;
-    live.current.panY = 0;
-    applySurfaceTransform();
-    applyBgTransform();
-    updateZoomLabel();
-  }, [visibleSessions, width, canvasHeight, autoLayout, setCanvas]);
-
   const handleFitAll = useCallback(() => {
     zoomToFit(width, canvasHeight);
     // Sync live ref from store after zoomToFit updates it
@@ -693,6 +680,16 @@ export const Canvas = memo(function Canvas({ width, height, onCloseSession }: Ca
       updateZoomLabel();
     });
   }, [width, canvasHeight, zoomToFit]);
+
+  // One click: re-tile every visible pane into the aspect-aware grid
+  // (computeAutoLayout), then fit the result in view. The fit also covers the
+  // many-panes case where enforceMinSize pushes the grid past the viewport.
+  const handleAutoGrid = useCallback(() => {
+    const ids = visibleSessions.map((s) => s.id);
+    if (ids.length === 0) return;
+    autoLayout(ids, width, canvasHeight);
+    requestAnimationFrame(() => handleFitAll());
+  }, [visibleSessions, width, canvasHeight, autoLayout, handleFitAll]);
 
   // Keep the store's notion of the live viewport in sync so new-pane placement
   // (findBestPosition) uses the real canvas size instead of a hardcoded default.
@@ -710,7 +707,7 @@ export const Canvas = memo(function Canvas({ width, height, onCloseSession }: Ca
   const zoomPercent = Math.round(canvas.zoom * 100);
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+    <div data-tour="canvas" style={{ position: "relative", width: "100%", height: "100%" }}>
       {/* Canvas viewport */}
       <div
         ref={viewportRef}
@@ -992,6 +989,23 @@ export const Canvas = memo(function Canvas({ width, height, onCloseSession }: Ca
             onMouseLeave={(e) => { if (!panMode) { e.currentTarget.style.color = "var(--text-muted)"; e.currentTarget.style.borderColor = "var(--border-default)"; } }}
           >
             PAN
+          </button>
+          <button
+            onClick={handleAutoGrid}
+            title="Auto-arrange every pane into a tidy grid and fit it in view"
+            style={{
+              background: "#1a1a1a",
+              border: "1px solid #2a2a2a",
+              color: "var(--text-muted)",
+              padding: "3px 6px",
+              cursor: "pointer",
+              fontFamily: MONO,
+              fontSize: 12,
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-accent)"; e.currentTarget.style.borderColor = "var(--text-accent)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; e.currentTarget.style.borderColor = "var(--border-default)"; }}
+          >
+            AUTO
           </button>
           <button
             onClick={handleFitAll}

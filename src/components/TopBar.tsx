@@ -10,6 +10,7 @@ import { jumpToSession, switchWorkspace } from "../lib/jumpToSession";
 import { detectAgent } from "../lib/paneTheme";
 import { UI_ICON } from "../lib/icons";
 import { CanvasControls } from "./CanvasControls";
+import { VoiceControl } from "./VoiceControl";
 
 const STATUS_COLORS: Record<string, string> = {
   idle: "var(--status-idle)",
@@ -311,6 +312,7 @@ export const TopBar = memo(function TopBar({ onFocusSession, onCloseSession }: T
       >
         {/* Toggle sidebar */}
         <button
+          data-tour="sidebar-toggle"
           onClick={() => toggleSidebar()}
           title="Toggle Sidebar (Cmd+S)"
           style={{
@@ -327,7 +329,7 @@ export const TopBar = memo(function TopBar({ onFocusSession, onCloseSession }: T
 
 
         {/* Workspace switcher — pills with a pane count, the active one accented */}
-        <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1, overflow: "hidden" }}>
+        <div data-tour="workspaces" style={{ display: "flex", alignItems: "center", gap: 4, flex: 1, overflow: "hidden" }}>
           {workspaces.map((ws) => {
             const isActive = ws.id === activeWorkspaceId;
             const paneCount = sessions.filter((s) => s.workspace_id === ws.id).length;
@@ -464,6 +466,9 @@ export const TopBar = memo(function TopBar({ onFocusSession, onCloseSession }: T
           document.body,
         )}
 
+        {/* Voice control (Pro) — speak to spawn / message / read agents */}
+        <VoiceControl />
+
         {/* Top-right actions: + New · command palette */}
         <CanvasControls />
 
@@ -501,6 +506,7 @@ export const TopBar = memo(function TopBar({ onFocusSession, onCloseSession }: T
           Hidden when the user has moved the terminal list to the pop-out drawer. */}
       {activeSessions.length > 0 && terminalListPlacement === "topbar" && (
         <div
+          data-tour="tab-strip"
           style={{
             height: "32px",
             display: "flex",
