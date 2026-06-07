@@ -667,12 +667,12 @@ pub fn on_agent_event(
     // completely independently of Max: you get notified whether or not a voice
     // session is running, in any workspace, even with the window in the
     // background. This is the always-on safety net.
-    if state
+    let push_on = state
         .db
         .get_setting("voice_announce_push")
         .map(|v| v != "false")
-        .unwrap_or(true)
-    {
+        .unwrap_or(true);
+    if push_on {
         use tauri_plugin_notification::NotificationExt;
         let _ = app
             .notification()
@@ -682,9 +682,11 @@ pub fn on_agent_event(
             .show();
     }
 
-    // Stuck-agent watchdog: a fresh "needs you" gets one escalation if the
-    // pane is still waiting in 2 minutes.
-    if matches!(event, AgentEvent::NeedsAttention) && delivered_to_voice {
+    // Stuck-agent watchdog: a fresh "needs you" gets one escalation if the pane
+    // is still waiting in 2 minutes. Arm it whenever the user was notified
+    // through EITHER channel — the re-reminder is the whole value of the
+    // stalled-permission alert, and must not require the voice to be on.
+    if matches!(event, AgentEvent::NeedsAttention) && (delivered_to_voice || push_on) {
         let app = app.clone();
         let sid = session_id.to_string();
         let ws = workspace_id.to_string();
