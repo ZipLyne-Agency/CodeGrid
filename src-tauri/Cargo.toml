@@ -1,6 +1,6 @@
 [package]
 name = "codegrid"
-version = "0.1.73"
+version = "0.1.74"
 description = "Code Grid — Terminal workspace manager"
 authors = ["CodeGrid"]
 edition = "2021"
