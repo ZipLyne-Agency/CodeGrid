@@ -7,7 +7,6 @@ import {
   useReviewStore, REVIEW_DIMENSIONS, reviewToPrompt,
   type ReviewDimension, type ReviewRecord,
 } from "../stores/reviewStore";
-import { Gated } from "./Gated";
 import { UI_ICON } from "../lib/icons";
 import { sendToSession, type ReviewItem, type ReviewFinding, type ReviewSeverity } from "../lib/ipc";
 
@@ -37,10 +36,10 @@ function findingCount(r: ReviewRecord): number {
 }
 
 /**
- * Pro code-review overlay. Reviews run in the background (state lives in
- * reviewStore), so you can start one, close the panel, run another, and revisit
- * any of them from the history rail. Each result can be copied as a prompt or
- * sent to the focused agent.
+ * AI code-review overlay (BYOK OpenAI). Reviews run in the background (state
+ * lives in reviewStore), so you can start one, close the panel, run another, and
+ * revisit any of them from the history rail. Each result can be copied as a
+ * prompt or sent to the focused agent.
  */
 export function ReviewPanel() {
   const reviewPanelOpen = useAppStore((s) => s.reviewPanelOpen);
@@ -151,8 +150,7 @@ export function ReviewPanel() {
           >×</button>
         </div>
 
-        <Gated tier={1}>
-          <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+        <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
             {/* History rail */}
             <div style={{
               width: 200, flexShrink: 0, borderRight: "1px solid var(--border-default)",
@@ -238,7 +236,6 @@ export function ReviewPanel() {
               </div>
             </div>
           </div>
-        </Gated>
       </div>
     </div>
   );

@@ -841,7 +841,7 @@ export async function getSystemMemory(): Promise<SystemMemoryInfo> {
   return invoke("get_system_memory");
 }
 
-// === Pro: Code Review ===
+// === AI Code Review (BYOK OpenAI) ===
 
 export type ReviewSeverity = "critical" | "high" | "medium" | "low" | "nit";
 
@@ -873,7 +873,7 @@ export interface ReviewResponse {
   truncated: boolean;
   /** Friendly model name (e.g. "Claude Sonnet 4.6"), shown in the review header. */
   model?: string | null;
-  /** Monthly review quota for this wallet (so we can show "12/30 left"). */
+  /** Optional usage info (unused for BYOK). */
   usage?: ReviewUsage | null;
 }
 
@@ -882,7 +882,7 @@ export async function getActiveDiff(workingDir: string): Promise<string> {
   return invoke("get_active_diff", { workingDir });
 }
 
-/** Run a Pro code review on the active diff. Throws a user-safe message on failure. */
+/** Run an AI code review on the active diff (BYOK OpenAI). Throws a user-safe message on failure. */
 export async function runReview(workingDir: string, dimensions?: string[]): Promise<ReviewResponse> {
   return invoke("run_review", { workingDir, dimensions: dimensions ?? null });
 }
@@ -980,7 +980,7 @@ export function onSessionEnded(
   });
 }
 
-// ── Voice control (Pro, BYOK OpenAI Realtime) ──────────────────────────────
+// ── Voice control (BYOK OpenAI Realtime) ──────────────────────────────────
 
 export interface VoiceState {
   active: boolean;

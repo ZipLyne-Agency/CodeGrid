@@ -54,11 +54,11 @@ export default function GitPage() {
         },
         {
           title: "AI commit messages",
-          blurb: <>A CodeGrid Pro feature, unlocked by staking $GRID — <a href="/pro" className="text-accent hover:underline">see what Pro includes →</a></>,
+          blurb: <>Free for everyone. Uses your OpenAI key (Settings → Voice). <a href="/pro" className="text-accent hover:underline">How free AI extras work →</a></>,
           cols: 2,
           items: [
-            { name: "Conventional messages, one click", desc: "Turn your staged diff into a clear, conventional commit message — no more “wip” or “fix stuff.”" },
-            { name: "Right from the Git panel", desc: "Generate the message where you already are, then edit and commit. Powered by Claude Sonnet 4.6." },
+            { name: "Clear messages, one click", desc: "Turn your staged diff into a clear commit message. No more “wip” or “fix stuff.”" },
+            { name: "Right from the Git panel", desc: "Generate the message where you already are, then edit and commit. Bring your own OpenAI key." },
           ],
         },
       ]}

@@ -4,7 +4,7 @@ import { useToastStore } from "./toastStore";
 
 export type ReviewDimension = "security" | "code" | "ux";
 
-/** The reviewers the user can pick from. Keys match the grid-review Worker. */
+/** Review dimensions the user can pick. Keys match the BYOK review payload. */
 export const REVIEW_DIMENSIONS: { key: ReviewDimension; label: string; blurb: string }[] = [
   { key: "security", label: "Security", blurb: "injection · auth · secrets · validation" },
   { key: "code", label: "Correctness", blurb: "logic bugs · edge cases · leaks" },

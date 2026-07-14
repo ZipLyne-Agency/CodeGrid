@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { Gated } from "./Gated";
 import { getCodingAnalytics, type CodingAnalytics } from "../lib/ipc";
 
 const MONO_FONT = "'SF Mono', 'Menlo', 'Monaco', 'Consolas', monospace";
@@ -27,22 +26,11 @@ function fmtCost(n: number): string {
 }
 
 /**
- * Pro coding-analytics dashboard (sidebar). All data is derived locally from the
- * agent CLIs' own logs — nothing leaves the machine.
+ * Coding-analytics dashboard (sidebar). All data is derived locally from the
+ * agent CLIs' own logs — nothing leaves the machine. Free for everyone.
  */
 export function AnalyticsPanel() {
-  return (
-    <Gated
-      tier={1}
-      loadingFallback={
-        <div style={{ color: "var(--text-muted)", fontSize: 12, padding: "20px 12px", textAlign: "center" }}>
-          Checking entitlement…
-        </div>
-      }
-    >
-      <AnalyticsBody />
-    </Gated>
-  );
+  return <AnalyticsBody />;
 }
 
 function AnalyticsBody() {

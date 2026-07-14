@@ -186,9 +186,9 @@ pub fn run() {
             commands::git_stash,
             commands::git_diff_stat,
             commands::git_diff_file,
-            // Premium entitlement relay (hands-free desktop link)
+            // Legacy no-op (wallet link disconnected)
             commands::poll_entitlement,
-            // Pro assist (cheap model): commit names + terminal summaries
+            // AI assist (BYOK): commit names + terminal summaries
             commands::ai_commit_message,
             commands::summarize_terminal,
             // Workspace-repo binding
@@ -277,15 +277,15 @@ pub fn run() {
             commands::setup_agent_bus,
             // Native menu-bar (tray) status
             native_ui::set_tray_status,
-            // Premium entitlement (veGRID staking)
+            // Legacy entitlement storage (unused; free/BYOK path)
             entitlement::store_entitlement,
             entitlement::get_entitlement,
             entitlement::clear_entitlement,
-            // Pro: code review + coding analytics
+            // AI code review + coding analytics (BYOK / local)
             commands::get_active_diff,
             commands::run_review,
             analytics::get_coding_analytics,
-            // Voice control (Pro, BYOK OpenAI Realtime)
+            // Voice control (BYOK OpenAI Realtime)
             voice::voice_start,
             voice::voice_stop,
             voice::voice_state,

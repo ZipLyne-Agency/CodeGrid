@@ -7,12 +7,12 @@ import { checkForUpdates } from "../lib/updater";
 import { getSetting, setSetting, getClaudePath, getEnvAllowStatus, toggleEnvAllow, getProjectSearchRoots, setProjectSearchRoots, rescanProjectRoots, listRecentProjects, voiceSetApiKey, voiceClearApiKey, voiceKeyStatus, voiceSetSummon } from "../lib/ipc";
 import { useAppStore } from "../stores/appStore";
 import { UI_ICON, type Icon } from "../lib/icons";
-import { PremiumPanel } from "./PremiumPanel";
+import { PremiumPanel } from "./PremiumPanel"; // free/open-source notice (was staking)
 
 const ACCENT = "#ff8c00";
 const MAGENTA = "#d500f9";
 
-type SectionId = "general" | "terminal" | "tools" | "voice" | "shortcuts" | "premium";
+type SectionId = "general" | "terminal" | "tools" | "voice" | "shortcuts" | "about";
 
 // --- small presentational helpers -------------------------------------------
 
@@ -208,7 +208,7 @@ export const Settings = memo(function Settings() {
   const updateStatus = useUpdaterStore((s) => s.status);
   const updateVersion = useUpdaterStore((s) => s.version);
   const updateError = useUpdaterStore((s) => s.error);
-  // Voice (Pro, BYOK)
+  // Voice + AI assists (BYOK OpenAI)
   const [voiceKeySet, setVoiceKeySet] = useState(false);
   const [voiceKeyDraft, setVoiceKeyDraft] = useState("");
   const [voiceMode, setVoiceMode] = useState("focused");
@@ -355,7 +355,7 @@ export const Settings = memo(function Settings() {
     { id: "tools", label: "Tools", icon: UI_ICON.mcp },
     { id: "voice", label: "Voice", icon: UI_ICON.mic },
     { id: "shortcuts", label: "Shortcuts", icon: UI_ICON.command },
-    { id: "premium", label: "Premium", icon: UI_ICON.crown },
+    { id: "about", label: "About", icon: UI_ICON.crown },
   ];
 
   // Simple search filter — matches setting rows by their label text.
@@ -672,10 +672,10 @@ export const Settings = memo(function Settings() {
       <SubHeader first>CodeGrid Voice</SubHeader>
       <div style={{ color: "var(--text-muted)", fontSize: 11, marginBottom: "12px", lineHeight: 1.5, marginTop: "-4px" }}>
         Speak to your canvas: spawn agents, send them tasks, and have their output summarized aloud.
-        Powered by OpenAI&apos;s Realtime API with your own key — usage is billed to your
-        OpenAI account, roughly $0.10/min of active conversation. The key is stored in the macOS
-        Keychain and never leaves the Rust process. Sessions are per-workspace: switching
-        workspaces ends the session.
+        The same OpenAI key also powers free AI assists (code review, commit messages, terminal naming).
+        Usage is billed to your OpenAI account (voice roughly $0.10/min of active conversation). The key
+        is stored in the macOS Keychain and never leaves the Rust process. Sessions are per-workspace:
+        switching workspaces ends the session.
       </div>
 
       {matches("openai api key") && (
@@ -1076,9 +1076,9 @@ export const Settings = memo(function Settings() {
             </div>
 
             <div style={{ flex: 1, overflow: "auto", padding: "8px 20px 20px" }}>
-              {filtering && section === "premium" ? (
+              {filtering && section === "about" ? (
                 <div style={{ color: "var(--text-muted)", fontSize: 11, fontStyle: "italic", padding: "11px 0" }}>
-                  Clear the filter to view Premium.
+                  Clear the filter to view About.
                 </div>
               ) : (
                 <>
@@ -1087,7 +1087,7 @@ export const Settings = memo(function Settings() {
                   {section === "tools" && renderTools()}
                   {section === "voice" && renderVoice()}
                   {section === "shortcuts" && renderShortcuts()}
-                  {section === "premium" && <PremiumPanel />}
+                  {section === "about" && <PremiumPanel />}
                 </>
               )}
             </div>

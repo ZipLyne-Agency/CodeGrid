@@ -34,13 +34,6 @@ const columns: { heading: string; links: { label: string; href: string; external
       { label: "Terms", href: "/terms" },
     ],
   },
-  {
-    heading: "$GRID",
-    links: [
-      { label: "Token", href: "/token" },
-      { label: "Treasury terminal", href: "/token/treasury" },
-    ],
-  },
 ];
 
 export function SiteFooter() {
@@ -48,7 +41,7 @@ export function SiteFooter() {
     <footer className="relative border-t border-border bg-bg-secondary">
       <div aria-hidden className="absolute inset-x-0 top-0 h-px rule-accent opacity-60" />
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-14">
-        <div className="grid gap-10 md:grid-cols-[1.4fr_1fr_1fr_1fr_1fr]">
+        <div className="grid gap-10 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
           {/* Brand */}
           <div className="flex flex-col gap-3">
             <BrandLogo size="sm" />
@@ -91,7 +84,7 @@ export function SiteFooter() {
 
         {/* Legal line */}
         <div className="mt-12 pt-6 border-t border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 font-mono text-[11px] text-text-secondary">
-          <span>&copy; {new Date().getFullYear()} ZipLyne LLC — a Wyoming limited liability company.</span>
+          <span>&copy; {new Date().getFullYear()} ZipLyne LLC. A Wyoming limited liability company.</span>
           <span className="flex items-center gap-4">
             <span>Built with Tauri + React</span>
             <a href="mailto:admin@codegrid.dev" className="hover:text-accent transition-colors">admin@codegrid.dev</a>

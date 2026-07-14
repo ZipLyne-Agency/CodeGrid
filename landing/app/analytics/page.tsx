@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { FeaturePage } from "@/components/feature-page";
 
 export const metadata: Metadata = {
-  title: "Coding analytics — a local dashboard of your agent usage | CodeGrid Pro",
+  title: "Coding analytics — a local dashboard of your agent usage | CodeGrid",
   description:
-    "A local dashboard built from your agent-CLI logs: tokens, API value, sessions, active days, a daily chart, and your token mix. Nothing ever leaves your machine. A CodeGrid Pro feature, uncapped.",
+    "A local dashboard built from your agent-CLI logs: tokens, API value, sessions, active days, a daily chart, and your token mix. Nothing ever leaves your machine. Free and uncapped.",
   alternates: { canonical: "https://www.codegrid.app/analytics" },
 };
 
@@ -12,16 +12,16 @@ export default function AnalyticsPage() {
   return (
     <FeaturePage
       eyebrow="Coding analytics"
-      badge="Pro · "
+      badge="Free · local · "
       title={<>See where your <span className="text-accent">tokens go.</span></>}
       intro={
         <>
-          A local dashboard built from your agent-CLI logs. Nothing ever leaves your machine — and
-          unlike the other Pro features, analytics is completely uncapped.
+          A local dashboard built from your agent-CLI logs. Nothing ever leaves your machine.
+          Free for everyone, with no usage cap.
         </>
       }
       docsHref="/pro"
-      docsLabel="About Pro →"
+      docsLabel="Every feature is free →"
       sections={[
         {
           title: "What you'll see",
@@ -38,15 +38,13 @@ export default function AnalyticsPage() {
           title: "Local and private",
           cols: 2,
           items: [
-            { name: "Range it", desc: "Look at the last 7, 30, or 90 days — or all of it." },
-            { name: "Built from your logs", desc: "Computed from the logs your agent CLIs already write, on your machine." },
-            { name: "Nothing leaves", desc: "Analytics is local-only. No telemetry, no upload, no account." },
-            { name: "Uncapped", desc: "There's no monthly limit on analytics — look as often as you like." },
+            { name: "On your machine", desc: "Reads agent CLI logs already on disk. No CodeGrid account." },
+            { name: "No network", desc: "Analytics never phones home. Fully offline." },
           ],
         },
       ]}
-      closingTitle={<>Know your habits. On your machine.</>}
-      closingBlurb="Powered by staking $GRID, and entirely local."
+      closingTitle={<>Included in free CodeGrid.</>}
+      closingBlurb="Open the Analytics panel in the sidebar. No key required."
     />
   );
 }

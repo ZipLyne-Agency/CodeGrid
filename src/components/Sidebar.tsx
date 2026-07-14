@@ -1,7 +1,7 @@
 import { memo, useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { clampMenuPosition } from "../lib/menuPosition";
-import { ProBadge } from "./ProBadge";
+
 import { useWorkspaceStore, type ActivityPanel } from "../stores/workspaceStore";
 import { useSessionStore } from "../stores/sessionStore";
 import { useAppStore } from "../stores/appStore";
@@ -16,7 +16,7 @@ import {
   gitFetch, gitStash, gitStageAll, gitDiscardFile,
   type GitStatusInfo, type GitBranchInfo, type GitLogEntry,
 } from "../lib/ipc";
-import { useHasTier } from "./Gated";
+
 import { FileTree } from "./FileTree";
 import { ProjectSearch } from "./ProjectSearch";
 import { AgentBusPanel } from "./AgentBusPanel";
@@ -248,7 +248,6 @@ const GitPanel = memo(function GitPanel({
   const [commitFormOpen, setCommitFormOpen] = useState(false);
   const [commitMessage, setCommitMessage] = useState("");
   const [aiGenerating, setAiGenerating] = useState(false);
-  const isPro = useHasTier(1);
   const [publishLoading, setPublishLoading] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
@@ -450,21 +449,18 @@ const GitPanel = memo(function GitPanel({
     if (!dir || !workspaceGitStatus) return;
     setAiGenerating(true);
     try {
-      // Pro: real AI commit message from the diff (hosted Haiku, fair-use capped).
-      // Free: instant offline heuristic. AI errors (quota/offline) fall back too.
-      if (isPro) {
-        try {
-          const msg = await generateCommitMessage(dir);
-          if (msg && msg.trim()) { setCommitMessage(msg.trim()); return; }
-        } catch (e) {
-          addToast(`AI message unavailable (${e}) — used a basic one.`, "warning");
-        }
+      // Prefer BYOK AI (OpenAI key in Settings → Voice); fall back to heuristic.
+      try {
+        const msg = await generateCommitMessage(dir);
+        if (msg && msg.trim()) { setCommitMessage(msg.trim()); return; }
+      } catch (e) {
+        addToast(`AI message unavailable (${e}) — used a basic one.`, "warning");
       }
       setCommitMessage(buildHeuristicMessage());
     } finally {
       setAiGenerating(false);
     }
-  }, [dir, workspaceGitStatus, isPro, buildHeuristicMessage, addToast]);
+  }, [dir, workspaceGitStatus, buildHeuristicMessage, addToast]);
 
   // ⌘K "Generate AI commit message" dispatches this — open the commit form and
   // fill it in, so the feature is reachable without first hunting for the form.
@@ -630,7 +626,7 @@ const GitPanel = memo(function GitPanel({
             <button
               onClick={() => { setCommitFormOpen(true); void handleGenerateCommitMessage(); }}
               disabled={aiGenerating}
-              title={isPro ? "Write a commit message with AI (Pro)" : "Generate a commit message \u2014 upgrade to Pro for AI-written ones"}
+              title="Write a commit message with AI (uses your OpenAI key)"
               aria-label="Generate commit message with AI"
               style={{
                 flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4,
@@ -640,7 +636,7 @@ const GitPanel = memo(function GitPanel({
               }}
               onMouseEnter={(e) => { if (!aiGenerating) e.currentTarget.style.borderColor = "var(--text-accent)"; }}
               onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--accent-border)"; }}
-            >{aiGenerating ? <span className="cg-spinner" style={{ width: 12, height: 12 }} /> : <><UI_ICON.ai size={15} weight="fill" style={{ flexShrink: 0 }} />{!isPro && <ProBadge style={{ marginLeft: 1 }} />}</>}</button>
+            >{aiGenerating ? <span className="cg-spinner" style={{ width: 12, height: 12 }} /> : <UI_ICON.ai size={15} weight="fill" style={{ flexShrink: 0 }} />}</button>
           </div>
         )}
 
@@ -652,7 +648,7 @@ const GitPanel = memo(function GitPanel({
               return (
                 <button
                   onClick={() => { if (dir) setReviewPanelOpen(true, dir); }}
-                  title={reviewRunning ? "Review running \u2014 click to view" : "AI code review of all your uncommitted changes (Pro)"}
+                  title={reviewRunning ? "Review running \u2014 click to view" : "AI code review of all your uncommitted changes (uses your OpenAI key)"}
                   style={{
                     flex: 1, padding: "6px 12px", display: "inline-flex",
                     alignItems: "center", justifyContent: "center", gap: 6,
@@ -962,20 +958,20 @@ const GitPanel = memo(function GitPanel({
                   <button
                     onClick={handleGenerateCommitMessage}
                     disabled={aiGenerating}
-                    title={isPro ? "Write the commit message with AI (Pro)" : "Generate a basic message \u2014 upgrade to Pro for AI-written ones"}
+                    title="Write the commit message with AI (uses your OpenAI key)"
                     aria-label="Generate commit message"
                     style={{
                       display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4,
-                      background: isPro ? "var(--accent-soft)" : "var(--bg-tertiary)",
-                      border: `1px solid ${isPro ? "var(--accent-border)" : "var(--border-default)"}`,
+                      background: "var(--accent-soft)",
+                      border: "1px solid var(--accent-border)",
                       color: aiGenerating ? "var(--text-faint)" : "var(--text-accent)",
                       fontSize: 11, fontWeight: 700, fontFamily: "var(--font-ui)",
                       cursor: aiGenerating ? "wait" : "pointer",
                       padding: "0 7px", flexShrink: 0,
                     }}
                     onMouseEnter={(e) => { if (!aiGenerating) e.currentTarget.style.borderColor = "var(--text-accent)"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = isPro ? "var(--accent-border)" : "var(--border-default)"; }}
-                  >{aiGenerating ? "\u2026" : <><UI_ICON.ai size={13} weight="fill" style={{ flexShrink: 0 }} /> AI{!isPro && <ProBadge style={{ marginLeft: 2 }} />}</>}</button>
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--accent-border)"; }}
+                  >{aiGenerating ? "\u2026" : <><UI_ICON.ai size={13} weight="fill" style={{ flexShrink: 0 }} /> AI</>}</button>
                 </div>
                 <div style={{ display: "flex", gap: "2px" }}>
                   <button
@@ -1335,7 +1331,6 @@ const SIDEBAR_WIDTH = 300;
 
 export const Sidebar = memo(function Sidebar() {
   const { workspaces, activeWorkspaceId, sidebarOpen, activePanel, setActivePanel } = useWorkspaceStore();
-  const isPro = useHasTier(1);
   const sessions = useSessionStore((s) => s.sessions);
   const [workspaceGitStatus, setWorkspaceGitStatus] = useState<GitStatusInfo | null>(null);
 
@@ -1461,13 +1456,6 @@ export const Sidebar = memo(function Sidebar() {
               >
                 <ItemIcon size={18} weight={isActive ? "fill" : "regular"} />
                 <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: 0.2 }}>{item.label}</span>
-                {item.id === "analytics" && !isPro && (
-                  <UI_ICON.lock
-                    size={9}
-                    weight="fill"
-                    style={{ position: "absolute", top: 5, right: "50%", marginRight: -16, color: "var(--accent, #ff8c00)" }}
-                  />
-                )}
                 {badge > 0 && (
                   <span style={{
                     position: "absolute", top: 4, right: "50%", marginRight: -18,

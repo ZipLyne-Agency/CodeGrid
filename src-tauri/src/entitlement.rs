@@ -1,6 +1,6 @@
-//! Premium entitlement storage.
+//! Legacy premium entitlement storage (disconnected).
 //!
-//! Stores the short-lived, EdDSA-signed entitlement JWT minted by the
+//! Previously stored a short-lived EdDSA-signed entitlement JWT from the
 //! grid-verifier Worker in the OS keychain (macOS Keychain via the `keyring`
 //! crate). The token is a *bearer of a claim*, not a secret key — but it still
 //! belongs in the keychain rather than plaintext on disk.
@@ -56,10 +56,8 @@ pub fn clear_entitlement() -> Result<(), String> {
 /// Verify the stored entitlement JWT (EdDSA signature, issuer, audience,
 /// expiry) entirely in Rust and return its tier. `0` when no/invalid token.
 ///
-/// This is the non-bypassable twin of the frontend's `verifyEntitlementToken`,
-/// for backend-gated features that mustn't trust webview state. Currently
-/// unused (voice went BYOK-for-everyone) but kept for the next Pro feature
-/// that needs a Rust-side gate.
+/// Legacy twin of the old frontend `verifyEntitlementToken`. Unused — every
+/// feature is free and AI assists use BYOK, not entitlement tiers.
 #[allow(dead_code)]
 pub fn verified_tier() -> Result<u8, String> {
     use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;

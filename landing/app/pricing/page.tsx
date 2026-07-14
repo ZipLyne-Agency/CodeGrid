@@ -10,21 +10,26 @@ export const metadata: Metadata = {
 };
 
 const included = [
-  "All 5 agents — Claude, Codex, Gemini, Cursor, shells",
+  "All agents — Claude, Codex, Gemini, Grok, Cursor, shells",
   "Unlimited concurrent sessions",
   "2D canvas, layout presets, multiple workspaces",
   "Attention detection across every agent",
   "Built-in Git + GitHub UI",
+  "AI code review, commit messages, terminal naming (BYOK)",
+  "Local coding analytics (no key needed)",
+  "Voice control (BYOK OpenAI Realtime)",
   "File tree, project search, code viewer",
   "MCP server manager & command palette",
   "Signed & notarized · auto-updates",
 ];
 
 const faqs: { q: string; a: string }[] = [
-  { q: "Is it really free?", a: "Yes — the CodeGrid desktop app is free and open source under the MIT license, with no account or license keys, and every feature included. We may later offer optional hosted or premium services, but the desktop app stays free and open source." },
-  { q: "How do you make money?", a: "Today we don't — CodeGrid is free and open source, with no paid tier and nothing to sell you. It's a product from ZipLyne LLC, and we're investing in it to grow the user base first. Down the road we may offer optional paid extras for teams — things like a hosted sync or collaboration service — but those would be add-ons you can ignore. The desktop app you download stays free and open source either way." },
-  { q: "Do I need an account?", a: "No. There's no sign-up and no telemetry. You bring your own AI agent logins; CodeGrid stores nothing." },
-  { q: "Can I use it at work?", a: "Yes — the MIT license permits commercial use. See the Terms for details." },
+  { q: "Is it really free?", a: "Yes. The CodeGrid desktop app is free and open source under the MIT license, with no account, no license keys, no paid tier, and every feature included." },
+  { q: "What about AI features?", a: "AI extras (code review, commit messages, terminal naming, voice) use your own OpenAI API key. Usage bills to your OpenAI account. Coding analytics runs fully locally with no key." },
+  { q: "Is there crypto or staking?", a: "No. There is no token, wallet link, or stake required for any feature." },
+  { q: "How do you make money?", a: "Today we don't. CodeGrid is free and open source from ZipLyne LLC. Optional hosted services for teams may exist later as add-ons you can ignore; the desktop app stays free and open source either way." },
+  { q: "Do I need an account?", a: "No. There's no sign-up and no telemetry. You bring your own AI agent logins and optional OpenAI key; CodeGrid stores nothing on our servers." },
+  { q: "Can I use it at work?", a: "Yes. The MIT license permits commercial use. See the Terms for details." },
 ];
 
 export default function PricingPage() {

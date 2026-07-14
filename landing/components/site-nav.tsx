@@ -13,22 +13,13 @@ const GITHUB = "https://github.com/ZipLyne-Agency/CodeGrid-Claude-Code-Terminal"
 const primary: { label: string; href: string }[] = [
   { label: "Features", href: "/features" },
   { label: "Docs", href: "/docs" },
-];
-
-// $GRID token surfaces — grouped so the token, staking, and treasury all have
-// an obvious, single home in the bar (previously only Treasury was exposed).
-const grid: { label: string; href: string; hint?: string }[] = [
-  { label: "Token page", href: "/token", hint: "Price, chart & where to buy" },
-  { label: "Stake $GRID", href: "/token/stake", hint: "Stake → unlock CodeGrid Pro" },
-  { label: "Treasury", href: "/token/treasury", hint: "Live, on-chain balance & claims" },
-  { label: "Policy", href: "/token/policy", hint: "How the treasury is governed" },
+  { label: "Pricing", href: "/pricing" },
 ];
 
 // Secondary product + marketing surfaces — one click away, out of the way.
 const resources: { label: string; href: string }[] = [
   { label: "Agent Bus", href: "/agent-bus" },
   { label: "Skills", href: "/skills" },
-  { label: "Pricing", href: "/pricing" },
   { label: "Blog", href: "/blog" },
   { label: "Changelog", href: "/changelog" },
 ];
@@ -42,7 +33,7 @@ const company: { label: string; href: string }[] = [
   { label: "Press & Brand", href: "/press" },
 ];
 
-type MenuId = "grid" | "resources" | "company" | null;
+type MenuId = "resources" | "company" | null;
 
 export function SiteNav() {
   const [open, setOpen] = useState(false);          // mobile menu
@@ -154,10 +145,6 @@ export function SiteNav() {
           ))}
 
           <Dropdown id="resources" label="Resources" items={resources} />
-          {/* $GRID — token, staking, treasury & policy in one place. Kept as a
-              plain dropdown (not a promoted, accent slot): the product is the
-              focus, the token is optional and one click away for those who want it. */}
-          <Dropdown id="grid" label="$GRID" items={grid} />
           <Dropdown id="company" label="Company" items={company} />
 
           <a href={GITHUB} target="_blank" rel="noopener noreferrer" className={`${pill} ${inactive}`}>GitHub</a>
@@ -196,14 +183,6 @@ export function SiteNav() {
             {resources.map((l) => (
               <Link key={l.label} href={l.href} className={`block px-4 py-2.5 rounded-xl font-mono text-sm transition-colors ${isActive(l.href) ? "text-accent bg-accent/10" : "text-text-secondary hover:bg-white/[0.06]"}`}>
                 {l.label}
-              </Link>
-            ))}
-
-            <div className="px-4 pt-3 pb-1 font-mono text-[10px] font-bold tracking-widest text-text-secondary uppercase">$GRID</div>
-            {grid.map((l) => (
-              <Link key={l.label} href={l.href} className={`block px-4 py-2.5 rounded-xl font-mono text-sm transition-colors ${isActive(l.href) ? "text-accent bg-accent/10" : "text-text-secondary hover:bg-white/[0.06]"}`}>
-                {l.label}
-                {l.hint && <span className="block text-text-secondary/70 text-[11px] font-normal">{l.hint}</span>}
               </Link>
             ))}
 

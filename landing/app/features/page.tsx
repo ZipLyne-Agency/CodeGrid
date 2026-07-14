@@ -8,7 +8,7 @@ const GITHUB = "https://github.com/ZipLyne-Agency/CodeGrid-Claude-Code-Terminal"
 export const metadata: Metadata = {
   title: "Features — everything CodeGrid does | CodeGrid",
   description:
-    "A canvas for your coding agents: run Claude, Codex, Gemini, Grok, Cursor, and Venice side by side, let them collaborate over the Agent Bus, and keep Git, files, preview, and notes on one canvas. Pro adds AI code review, analytics, and more — powered by staking $GRID.",
+    "A canvas for your coding agents: run Claude, Codex, Gemini, Grok, Cursor, and Venice side by side, let them collaborate over the Agent Bus, and keep Git, files, preview, notes, AI review, and analytics on one canvas. Free and open source.",
   alternates: { canonical: "https://www.codegrid.app/features" },
 };
 
@@ -45,12 +45,12 @@ const groups: Group[] = [
     ],
   },
   {
-    heading: "CodeGrid Pro",
-    blurb: "Powered by staking $GRID — a subscription you don't pay for.",
+    heading: "AI extras (free, BYOK)",
+    blurb: "Every feature is free. Optional AI extras use your own OpenAI key.",
     cards: [
-      { title: "Pro overview", desc: "What Pro unlocks and how staking $GRID turns it on, with your principal always kept.", href: "/pro" },
+      { title: "Free forever", desc: "No paid tier. How AI extras work with bring-your-own-key.", href: "/pro" },
       { title: "AI code review", desc: "Review changes for correctness, security, and UX before you push.", href: "/code-review" },
-      { title: "Coding analytics", desc: "A local, uncapped dashboard of your agent usage — nothing leaves your machine.", href: "/analytics" },
+      { title: "Coding analytics", desc: "A local, uncapped dashboard of your agent usage. Nothing leaves your machine.", href: "/analytics" },
     ],
   },
   {
@@ -86,7 +86,7 @@ export default function FeaturesPage() {
             </h1>
             <p className="mt-6 text-text-secondary text-sm sm:text-base leading-relaxed max-w-2xl mx-auto">
               An army of coding agents on a canvas per project — with Git, files, preview, and notes
-              all in one native, local-first macOS app. Free and open source; Pro is optional.
+              all in one native, local-first macOS app. Free and open source.
             </p>
             <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-3">
               <a href="/download" className="btn-sheen inline-flex items-center gap-2 bg-accent hover:bg-accent-hover text-black font-mono text-sm font-semibold px-7 py-3.5 transition-colors">

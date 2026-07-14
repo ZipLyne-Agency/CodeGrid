@@ -1,4 +1,4 @@
-//! CodeGrid Voice — speech-to-speech control of the canvas (Pro-only, BYOK).
+//! CodeGrid Voice — speech-to-speech control of the canvas (BYOK OpenAI).
 //!
 //! A live WebSocket session to OpenAI's Realtime API (`gpt-realtime-2`):
 //! mic audio is captured in Rust via cpal (no WKWebView getUserMedia), model
@@ -8,7 +8,8 @@
 //!
 //! Design doc: docs/voice-control.md. Key properties:
 //!   - The OpenAI key lives in the macOS Keychain and never touches the webview.
-//!   - `voice_start` re-verifies the entitlement JWT in Rust (tier >= 1).
+//!   - Free for everyone; only requirement is an OpenAI key (Settings → Voice).
+//!   - The same key powers AI assists (code review, commit messages, naming).
 //!   - Focus gating: in "focused" mode (default) the cpal stream is *paused*
 //!     (OS mic indicator off) whenever the CodeGrid window loses focus.
 //!   - Idle auto-stop caps runaway per-minute audio cost.
@@ -187,7 +188,8 @@ pub fn voice_clear_api_key() -> Result<(), String> {
     }
 }
 
-fn get_api_key() -> Result<String, String> {
+/// Public so AI assists (review / commit / summarize) can reuse the same BYOK key.
+pub fn get_openai_api_key() -> Result<String, String> {
     match key_entry()?.get_password() {
         Ok(k) => Ok(k),
         Err(keyring::Error::NoEntry) => {
@@ -195,6 +197,10 @@ fn get_api_key() -> Result<String, String> {
         }
         Err(e) => Err(format!("keychain read: {e}")),
     }
+}
+
+fn get_api_key() -> Result<String, String> {
+    get_openai_api_key()
 }
 
 // ─────────────────────────────────────────────────────────── commands ──

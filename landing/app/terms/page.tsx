@@ -113,33 +113,7 @@ export default function TermsOfService() {
 
           <section>
             <h2 className="font-mono text-base font-semibold text-text-primary mb-3">
-              8. $GRID Token
-            </h2>
-            <p>
-              A community token called &quot;$GRID&quot; exists today on the Base
-              network. $GRID is entirely independent of the MIT-licensed CodeGrid
-              application: it is not part of the Software, is not required to download
-              or use the Software, and the Software&apos;s MIT license terms apply
-              regardless of whether you hold any $GRID. $GRID is not an investment, a
-              security, or a means of payment for CodeGrid. Holding $GRID conveys no
-              ownership, equity, revenue share, profit share, governance rights, or
-              entitlement to any return, dividend, or distribution of any kind. We make
-              no promises regarding its price, value, liquidity, or future utility.
-              Anything affecting the token is described in the public{" "}
-              <a
-                href="/token/treasury?view=policy"
-                className="text-accent hover:underline"
-              >
-                $GRID treasury policy
-              </a>
-              . Nothing in these Terms or on this site is financial, legal, or tax
-              advice.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="font-mono text-base font-semibold text-text-primary mb-3">
-              9. Disclaimer of Warranties
+              8. Disclaimer of Warranties
             </h2>
             <p>
               THE SOFTWARE IS PROVIDED &quot;AS IS&quot; AND &quot;AS AVAILABLE&quot; WITHOUT
@@ -153,7 +127,7 @@ export default function TermsOfService() {
 
           <section>
             <h2 className="font-mono text-base font-semibold text-text-primary mb-3">
-              10. Limitation of Liability
+              9. Limitation of Liability
             </h2>
             <p>
               TO THE MAXIMUM EXTENT PERMITTED BY LAW, ZIPLYNE LLC SHALL NOT BE LIABLE
@@ -167,7 +141,7 @@ export default function TermsOfService() {
 
           <section>
             <h2 className="font-mono text-base font-semibold text-text-primary mb-3">
-              11. Term
+              10. Term
             </h2>
             <p>
               Your rights to the source code under the MIT License are perpetual and
@@ -179,7 +153,7 @@ export default function TermsOfService() {
 
           <section>
             <h2 className="font-mono text-base font-semibold text-text-primary mb-3">
-              12. Governing Law
+              11. Governing Law
             </h2>
             <p>
               These Terms shall be governed by and construed in accordance with the
@@ -191,7 +165,7 @@ export default function TermsOfService() {
 
           <section>
             <h2 className="font-mono text-base font-semibold text-text-primary mb-3">
-              13. Changes to Terms
+              12. Changes to Terms
             </h2>
             <p>
               We reserve the right to modify these Terms at any time. Changes will be
@@ -203,7 +177,7 @@ export default function TermsOfService() {
 
           <section>
             <h2 className="font-mono text-base font-semibold text-text-primary mb-3">
-              14. Contact
+              13. Contact
             </h2>
             <p>
               If you have questions about these Terms, contact us at{" "}

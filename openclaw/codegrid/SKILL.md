@@ -15,7 +15,6 @@ metadata:
   vendor: ZipLyne LLC
   homepage: https://codegrid.app
   docs: https://codegrid.app/docs
-  token: $GRID (Base, 0x6B456E66524aEC1792013eF9DFE87e3F84311ba3)
   version: 1
 ---
 
@@ -81,8 +80,7 @@ install the codegrid skill from https://github.com/BankrBot/skills/tree/main/cod
   (`skills/using-codegrid/SKILL.md`, `skills/codegrid-agent-bus/SKILL.md`).
   This Bankr Skills provider is a published copy kept in sync.
 - App download + full docs: <https://codegrid.app>.
-- Token (Base): `0x6B456E66524aEC1792013eF9DFE87e3F84311ba3` —
-  see <https://codegrid.app/token>.
+- Free and open source. Every feature is free; optional AI extras use your own API key.
 
 ## Safety defaults an agent should respect
 

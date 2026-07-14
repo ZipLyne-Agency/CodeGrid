@@ -56,7 +56,6 @@ export const DOCS_NAV: DocSection[] = [
     label: "Platform",
     links: [
       { title: "Updates", href: "/docs/updates" },
-      { title: "$GRID token", href: "/docs/token" },
       { title: "Privacy & security", href: "/docs/security" },
       { title: "Troubleshooting", href: "/docs/troubleshooting" },
     ],

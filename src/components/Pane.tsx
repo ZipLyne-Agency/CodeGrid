@@ -7,8 +7,6 @@ import { useLayoutStore } from "../stores/layoutStore";
 import type { SessionWithModel } from "../stores/sessionStore";
 import { detectAgent, statusTheme, hexToRgb } from "../lib/paneTheme";
 import { UI_ICON } from "../lib/icons";
-import { useHasTier } from "./Gated";
-import { useAppStore } from "../stores/appStore";
 
 const UI_FONT = "var(--font-ui)";
 
@@ -26,8 +24,7 @@ export const Pane = memo(function Pane({ session, onClose, onDragStart }: PanePr
   const toggleMaximize = useLayoutStore((s) => s.toggleMaximize);
   const minimizePane = useLayoutStore((s) => s.minimizePane);
   const maximizedPane = useLayoutStore((s) => s.maximizedPane);
-  const isPro = useHasTier(1);
-  const setProModalOpen = useAppStore((s) => s.setProModalOpen);
+
   const isFocused = focusedSessionId === session.id;
   const isMaximized = maximizedPane === session.id;
 
@@ -129,13 +126,11 @@ export const Pane = memo(function Pane({ session, onClose, onDragStart }: PanePr
   const [restarting, setRestarting] = useState(false);
   const [naming, setNaming] = useState(false);
 
-  // ✨ Name this terminal with AI (Pro) from its recent on-screen output.
+  // Name this terminal with AI from its recent on-screen output (BYOK OpenAI).
   const handleAiName = useCallback(
     async (e: React.MouseEvent) => {
       e.stopPropagation();
       if (naming) return;
-      // AI naming is a Pro feature — free users get the upgrade explainer instead.
-      if (!isPro) { setProModalOpen(true); return; }
       const { getTerminalSnapshot } = await import("../lib/terminalSnapshots");
       const text = getTerminalSnapshot(session.id);
       const { useToastStore } = await import("../stores/toastStore");
@@ -155,7 +150,7 @@ export const Pane = memo(function Pane({ session, onClose, onDragStart }: PanePr
         setNaming(false);
       }
     },
-    [naming, isPro, setProModalOpen, session.id, setSessionManualName],
+    [naming, session.id, setSessionManualName],
   );
 
   const handleRestart = useCallback(
@@ -318,20 +313,11 @@ export const Pane = memo(function Pane({ session, onClose, onDragStart }: PanePr
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
-          <HeaderBtn label={naming ? "Naming this terminal with AI…" : isPro ? "Name this terminal with AI" : "Name this terminal with AI — unlock with Pro"} onClick={handleAiName} onDark={!isFocused}>
+          <HeaderBtn label={naming ? "Naming this terminal with AI…" : "Name this terminal with AI (uses your OpenAI key)"} onClick={handleAiName} onDark={!isFocused}>
             {naming ? (
               <span className="cg-spinner" aria-label="Naming…" style={{ width: 12, height: 12 }} />
             ) : (
-              <span style={{ position: "relative", display: "inline-flex" }}>
-                <UI_ICON.ai size={13} weight="fill" />
-                {!isPro && (
-                  <UI_ICON.lock
-                    size={8}
-                    weight="fill"
-                    style={{ position: "absolute", right: -4, bottom: -3, color: "var(--accent, #ff8c00)" }}
-                  />
-                )}
-              </span>
+              <UI_ICON.ai size={13} weight="fill" />
             )}
           </HeaderBtn>
           <HeaderBtn label={isMaximized ? "Restore pane" : "Maximize pane"} onClick={(e) => { e.stopPropagation(); toggleMaximize(session.id); }} onDark={!isFocused}>

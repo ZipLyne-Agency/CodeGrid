@@ -18,33 +18,30 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "i.ytimg.com" },
     ],
   },
+  async redirects() {
+    // Crypto / staking / wallet surfaces are retired. Send old links home.
+    return [
+      { source: "/token", destination: "/", permanent: true },
+      { source: "/token/:path*", destination: "/", permanent: true },
+      { source: "/link", destination: "/", permanent: true },
+      { source: "/link/:path*", destination: "/", permanent: true },
+      { source: "/docs/token", destination: "/docs", permanent: true },
+    ];
+  },
   async headers() {
     const baseHeaders = [
-      { key: 'X-Content-Type-Options', value: 'nosniff' },
-      { key: 'X-XSS-Protection', value: '1; mode=block' },
-      { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-      { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "X-XSS-Protection", value: "1; mode=block" },
+      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
     ];
     return [
-      // Wallet-signing surfaces must NOT be framable (clickjacking → tricking a
-      // user into signing). These entries match before the catch-all below.
       {
-        source: '/token/stake',
-        headers: [...baseHeaders, { key: 'Content-Security-Policy', value: "frame-ancestors 'self'" }],
-      },
-      {
-        source: '/link',
-        headers: [...baseHeaders, { key: 'Content-Security-Policy', value: "frame-ancestors 'self'" }],
-      },
-      // Everything EXCEPT the signing routes stays embeddable anywhere (press,
-      // embeds). The negative lookahead ensures /token/stake and /link match
-      // ONLY their strict rule above — Next applies the last matching rule, so a
-      // plain catch-all would otherwise override them back to `*`. frame-ancestors
-      // is the modern replacement for X-Frame-Options; we intentionally omit
-      // X-Frame-Options (it only supports DENY/SAMEORIGIN and would override this).
-      {
-        source: '/((?!token/stake|link).*)',
-        headers: [...baseHeaders, { key: 'Content-Security-Policy', value: 'frame-ancestors *' }],
+        source: "/(.*)",
+        headers: [
+          ...baseHeaders,
+          { key: "Content-Security-Policy", value: "frame-ancestors *" },
+        ],
       },
     ];
   },

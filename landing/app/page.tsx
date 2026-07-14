@@ -369,57 +369,6 @@ function SectionHead({
 const WRAP = "w-full max-w-6xl mx-auto px-4 sm:px-6";
 
 /* ------------------------------------------------------------------ */
-/*  $GRID strip — understated, product-first. The app is free and works  */
-/*  without crypto; the token is optional and lives well below the fold. */
-/* ------------------------------------------------------------------ */
-
-function TokenStrip() {
-  return (
-    <div className="cv-auto border-t border-border">
-      <Reveal className={`${WRAP} py-14 sm:py-20`}>
-        <RevealItem>
-          <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-border bg-bg-secondary/30 px-6 py-7 sm:px-8">
-            <div className="max-w-xl">
-              <div className="font-mono text-[10px] uppercase tracking-widest text-text-secondary mb-2">
-                Optional · on Base
-              </div>
-              <h3 className="font-display text-lg sm:text-xl font-semibold text-text-primary mb-2">
-                There&apos;s a token. The app comes first.
-              </h3>
-              <p className="text-text-secondary text-sm leading-relaxed">
-                CodeGrid is free, open source, and fully usable without ever touching crypto.
-                $GRID is optional — stake it to unlock Pro features, or browse the public,
-                on-chain treasury. You never need a token to run a single agent.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
-              <Link
-                href="/token"
-                className="font-mono text-xs px-4 py-2.5 border border-border text-text-primary hover:border-text-secondary transition-colors"
-              >
-                Token page →
-              </Link>
-              <Link
-                href="/token/stake"
-                className="font-mono text-xs px-4 py-2.5 border border-border text-text-secondary hover:text-text-primary hover:border-text-secondary transition-colors"
-              >
-                Staking
-              </Link>
-              <Link
-                href="/token/treasury"
-                className="font-mono text-xs px-4 py-2.5 border border-border text-text-secondary hover:text-text-primary hover:border-text-secondary transition-colors"
-              >
-                Treasury
-              </Link>
-            </div>
-          </div>
-        </RevealItem>
-      </Reveal>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
 /*  Page                                                               */
 /* ------------------------------------------------------------------ */
 
@@ -844,8 +793,6 @@ export default function Home() {
           </Reveal>
         </div>
 
-        {/* ===== $GRID (optional) ============================== */}
-        <TokenStrip />
 
         {/* ===== Final CTA ===================================== */}
         <section className="cv-auto relative overflow-hidden py-24 sm:py-36 border-t border-border">

@@ -2,58 +2,51 @@ import type { Metadata } from "next";
 import { FeaturePage } from "@/components/feature-page";
 
 export const metadata: Metadata = {
-  title: "CodeGrid Pro — a subscription you don't pay for | CodeGrid",
+  title: "Every feature is free | CodeGrid",
   description:
-    "CodeGrid Pro is powered by staking $GRID, not a monthly bill — you stake instead of subscribing, with no yield and your principal always kept. Pro unlocks AI code review, coding analytics, AI commit messages, and AI terminal naming.",
+    "CodeGrid is free and open source. AI code review, coding analytics, AI commit messages, terminal naming, and voice control are all included. AI extras use your own API key.",
   alternates: { canonical: "https://www.codegrid.app/pro" },
 };
 
 export default function ProPage() {
   return (
     <FeaturePage
-      eyebrow="CodeGrid Pro"
-      badge="Pro · "
-      title={<>A subscription <span className="text-accent">you don&apos;t pay for.</span></>}
+      eyebrow="Free forever"
+      badge="Open source · "
+      title={<>Every feature is <span className="text-accent">free.</span></>}
       intro={
         <>
-          CodeGrid is free and open source. Pro is powered by staking <b className="text-text-primary">$GRID</b> —
-          you stake instead of subscribing. No yield, and your principal is always kept; unstake and the
-          features simply turn off.
+          CodeGrid is free and open source under the MIT license. There is no paid tier, no wallet,
+          and no crypto stake. AI extras that call a model use your own API key (bring your own key),
+          billed to your provider account, never to CodeGrid.
         </>
       }
-      docsHref="/token/stake"
-      docsLabel="Stake $GRID →"
+      docsHref="/pricing"
+      docsLabel="See pricing →"
       sections={[
         {
-          title: "What Pro unlocks",
+          title: "Included for everyone",
           items: [
-            { name: "AI code review", desc: "Review your git changes — bugs, security & UX — straight from the Git panel, before you push. Powered by Claude Sonnet 4.6." },
+            { name: "AI code review", desc: "Review your git changes for bugs, security, and UX from the Git panel. Uses your OpenAI key." },
             { name: "Coding analytics", desc: "A local dashboard built from your agent-CLI logs. Nothing ever leaves your machine." },
-            { name: "AI commit messages", desc: "One click turns your staged diff into a clear, conventional commit message." },
-            { name: "AI terminal naming", desc: "Name any terminal from what it's actually doing — a real tab title, not just “zsh.”" },
+            { name: "AI commit messages", desc: "One click turns your staged diff into a clear commit message. Uses your OpenAI key." },
+            { name: "AI terminal naming", desc: "Name any terminal from what it is actually doing. Uses your OpenAI key." },
+            { name: "Voice control", desc: "Talk to the canvas with OpenAI Realtime. Same key as the other AI extras." },
           ],
         },
         {
-          title: "How it works",
+          title: "How AI extras work",
           cols: 2,
           items: [
-            { name: "Stake to unlock", desc: "Pro unlocks at 50,000,000 $GRID of staking power. The real gate is your on-chain tier." },
-            { name: "Link your wallet", desc: "Sign in with your wallet to prove ownership. The entitlement is signed and verified offline — it can't be forged." },
-            { name: "Tiers", desc: "Free, Pro, Team, and Founder. Higher tiers carry everything below them." },
-            { name: "Keep your principal", desc: "Staking isn't a payment. There's no yield, and you can unstake at any time — Pro just switches off." },
-          ],
-        },
-        {
-          title: "Fair use",
-          cols: 2,
-          items: [
-            { name: "AI reviews & assists", desc: "30 AI reviews and 300 AI assists (commit & terminal names) per month." },
-            { name: "Analytics is uncapped", desc: "Coding analytics runs entirely on your machine and has no limit." },
+            { name: "Bring your own key", desc: "Add an OpenAI API key in Settings → Voice. It stays in the macOS Keychain." },
+            { name: "You pay the provider", desc: "Usage bills to your OpenAI account. CodeGrid never takes a cut or stores the key server-side." },
+            { name: "Works offline without AI", desc: "Agents, canvas, Git, files, and analytics all work without any CodeGrid account or key." },
+            { name: "No quotas from us", desc: "There is no monthly review cap from CodeGrid. Limits come only from your provider plan." },
           ],
         },
       ]}
-      closingTitle={<>Support the project. Unlock the extras.</>}
-      closingBlurb="Stake $GRID, link your wallet, and Pro turns on — no recurring bill."
+      closingTitle={<>Free software. Your keys. Your agents.</>}
+      closingBlurb="Download CodeGrid, open a project, and run every feature. No account, no license key, no stake."
     />
   );
 }
