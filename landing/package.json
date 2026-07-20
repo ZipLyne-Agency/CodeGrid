@@ -7,7 +7,7 @@
     "dev:random": "next dev -p 0",
     "build": "next build",
     "start": "next start",
-    "test": "vitest run"
+    "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
     "@mux/mux-player-react": "^3.11.7",

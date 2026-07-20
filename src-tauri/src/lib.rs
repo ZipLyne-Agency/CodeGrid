@@ -370,14 +370,12 @@ pub fn run() {
             }
             // macOS: dock icon clicked while app is running → show window
             RunEvent::Reopen {
-                has_visible_windows,
+                has_visible_windows: false,
                 ..
             } => {
-                if !has_visible_windows {
-                    if let Some(window) = app_handle.get_webview_window("main") {
-                        let _ = window.show();
-                        let _ = window.set_focus();
-                    }
+                if let Some(window) = app_handle.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
                 }
             }
             _ => {}

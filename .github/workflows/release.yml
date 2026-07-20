@@ -89,13 +89,14 @@ jobs:
       - name: Commit version bump
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.bump.outputs.tag }}
         run: |
           set -euo pipefail
           gh auth setup-git
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json package.json package-lock.json
-          git commit -m "Release ${{ steps.bump.outputs.tag }} [skip ci]"
+          git commit -m "Release ${RELEASE_TAG} [skip ci]"
           git push origin HEAD:main
 
       - name: Build, sign, notarize app, and create draft release
@@ -131,6 +132,7 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          RELEASE_TAG: ${{ steps.bump.outputs.tag }}
         run: |
           set -euo pipefail
           APP="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/CodeGrid.app"
@@ -171,9 +173,10 @@ jobs:
 
           # tauri-action uploaded the pre-staple DMG to the draft; replace it
           # with the verified stapled artifact before making the release public.
-          gh release upload "${{ steps.bump.outputs.tag }}" "$DMG" --clobber
+          gh release upload "$RELEASE_TAG" "$DMG" --clobber
 
       - name: Publish verified release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release edit "${{ steps.bump.outputs.tag }}" --draft=false --latest
+          RELEASE_TAG: ${{ steps.bump.outputs.tag }}
+        run: gh release edit "$RELEASE_TAG" --draft=false --latest

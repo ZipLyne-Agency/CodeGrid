@@ -1920,7 +1920,7 @@ fn scan_roots_for_projects(roots: &[String]) -> Vec<(String, String, String)> {
         }
     }
 
-    found.sort_by(|a, b| b.1.cmp(&a.1));
+    found.sort_by_key(|item| std::cmp::Reverse(item.1));
     found.truncate(50);
     found
         .into_iter()
@@ -3802,8 +3802,8 @@ fn build_file_tree(
     }
 
     // Sort: directories first, then files, alphabetical within each
-    dirs.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
-    files.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    dirs.sort_by_key(|entry| entry.name.to_lowercase());
+    files.sort_by_key(|entry| entry.name.to_lowercase());
 
     dirs.extend(files);
     dirs

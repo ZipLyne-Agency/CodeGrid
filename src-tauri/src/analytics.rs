@@ -735,13 +735,13 @@ fn aggregate(cache: &CacheFile, range_days: i64, cutoff: i64) -> CodingAnalytics
     by_day.sort_by(|a, b| a.date.cmp(&b.date));
 
     let mut by_model: Vec<ModelBucket> = model_map.into_values().collect();
-    by_model.sort_by(|a, b| b.total_tokens.cmp(&a.total_tokens));
+    by_model.sort_by_key(|item| std::cmp::Reverse(item.total_tokens));
 
     let mut by_project: Vec<ProjectBucket> = project_map.into_values().collect();
-    by_project.sort_by(|a, b| b.total_tokens.cmp(&a.total_tokens));
+    by_project.sort_by_key(|item| std::cmp::Reverse(item.total_tokens));
 
     let mut by_tool: Vec<ToolBucket> = tool_map.into_values().collect();
-    by_tool.sort_by(|a, b| b.total_tokens.cmp(&a.total_tokens));
+    by_tool.sort_by_key(|item| std::cmp::Reverse(item.total_tokens));
 
     let cost_note = if cost_partial {
         "Equivalent metered API price at public rates — not what Pro/Max subscription users pay. Cache reads dominate token volume (cheap or free on a subscription). Codex/other usage shows tokens only."

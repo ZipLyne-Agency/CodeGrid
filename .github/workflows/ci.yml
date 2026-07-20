@@ -14,7 +14,9 @@ concurrency:
 
 jobs:
   desktop-frontend:
-    runs-on: ubuntu-latest
+    # The desktop dependency graph intentionally includes macOS-only packaging
+    # tools, so validate it on the platform the application ships on.
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
