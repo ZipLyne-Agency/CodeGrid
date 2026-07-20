@@ -10,7 +10,7 @@
     "gen-keys": "node scripts/gen-keys.mjs"
   },
   "dependencies": {
-    "hono": "^4.9.0",
+    "hono": "^4.12.25",
     "jose": "^6.0.0",
     "viem": "^2.40.0"
   },
