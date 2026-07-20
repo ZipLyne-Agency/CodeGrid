@@ -1,0 +1,45 @@
+# GRID seasonal points — Cloudflare Worker + D1.
+#
+# Accrues NON-FINANCIAL status points from CodeGrid usage × veGRID power.
+# Points never convert to tokens. Authenticated by the entitlement JWT minted
+# by grid-verifier (verified here against the same Ed25519 PUBLIC key).
+name = "grid-points"
+main = "src/index.ts"
+compatibility_date = "2026-05-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+JWT_ISSUER = "https://codegrid.app"
+JWT_AUDIENCE = "codegrid-desktop"
+PUBLIC_JWK = '{"crv":"Ed25519","x":"nI2-PrApCZn-BNEqhlXPoMXUI5Bw5ht81gi70ypBakU","kty":"OKP","kid":"9193d787-f37a-4839-9411-e209a8c5e478","alg":"EdDSA"}'  # prod Ed25519 PUBLIC JWK (same as verifier's)
+HEARTBEAT_MIN_INTERVAL = "300"        # min seconds between credited beats
+MAX_USAGE_UNITS_PER_BEAT = "10"       # clamp per beat
+POWER_MULTIPLIER_DIVISOR = "50"       # 1 + sqrt(powerTokens)/divisor
+
+[[d1_databases]]
+binding = "DB"
+database_name = "grid-points"
+database_id = "2e0bdb17-fa4a-4c16-ad29-91ed518258f6"  # prod D1
+
+[observability]
+enabled = true
+
+# --- Staging (Base Sepolia testnet) — `wrangler deploy --env staging` ---
+[env.staging]
+name = "grid-points-staging"
+
+[env.staging.vars]
+JWT_ISSUER = "https://codegrid.app"
+JWT_AUDIENCE = "codegrid-desktop"
+HEARTBEAT_MIN_INTERVAL = "5"          # short interval for testing
+MAX_USAGE_UNITS_PER_BEAT = "10"
+POWER_MULTIPLIER_DIVISOR = "50"
+PUBLIC_JWK = '{"crv":"Ed25519","x":"KOPZvvHeeWNyBUooot04GUgLzAJN6pE8AEBQzIwdeks","kty":"OKP","kid":"005749ee-14a4-4702-88ca-ff409fa080d5","alg":"EdDSA"}'
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "grid-points-staging"
+database_id = "9b73ccb4-2f0e-477d-8a4e-628cde763782"
+
+[env.staging.observability]
+enabled = true

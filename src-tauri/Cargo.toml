@@ -1,0 +1,54 @@
+[package]
+name = "codegrid"
+version = "0.1.74"
+description = "Code Grid — Terminal workspace manager"
+authors = ["CodeGrid"]
+edition = "2021"
+
+[lib]
+name = "codegrid_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["unstable", "tray-icon", "image-png"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-deep-link = "2"
+portable-pty = "0.8"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time", "net", "io-util"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+toml = "0.8"
+rusqlite = { version = "0.31", features = ["bundled"] }
+which = "7"
+uuid = { version = "1", features = ["v4"] }
+chrono = "0.4"
+log = "0.4"
+walkdir = "2"
+
+regex = "1"
+sysinfo = "0.30"
+# OS keychain for the premium entitlement JWT (macOS Keychain).
+keyring = { version = "3", features = ["apple-native"] }
+cpal = "0.18.0"
+rodio = "0.22.2"
+base64 = "0.22.1"
+futures-util = "0.3.32"
+ed25519-dalek = "2.2.0"
+tokio-tungstenite = { version = "0.29.0", features = ["native-tls"] }
+tauri-plugin-global-shortcut = "2.3.2"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true

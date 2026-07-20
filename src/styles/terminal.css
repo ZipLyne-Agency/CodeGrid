@@ -1,0 +1,325 @@
+@import "tailwindcss";
+@import "@xterm/xterm/css/xterm.css";
+
+/* ===== Code Grid Dark Theme ===== */
+
+:root {
+  /* ── Surfaces (background levels, dark→light) ─────────── */
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #141414;
+  --bg-tertiary: #1e1e1e;
+  --bg-elevated: #232323;
+  --bg-hover: #2a2a2a;
+
+  /* ── Text (WCAG AA on bg-primary at body sizes) ───────── */
+  --text-primary: #e6e6e6;     /* 12.4:1 AAA */
+  --text-secondary: #b0b0b0;   /* 7.0:1  AAA */
+  --text-muted: #8a8a8a;       /* 4.6:1  AA  */
+  --text-faint: #6a6a6a;       /* 3.0:1  AA Large only */
+  --text-accent: #ff8c00;
+
+  /* ── Borders ──────────────────────────────────────────── */
+  --border-default: #2f2f2f;
+  --border-strong:  #3a3a3a;
+  --border-focus: #ff8c00;
+
+  /* ── Status (text-safe; pair with a glyph) ────────────────
+     Muted toward a Linear-style calm — softer, less neon, but still
+     AA-legible on bg-primary. Reserve saturation for the brand accent. */
+  --status-idle:    #6f9bcc;   /* calmer blue */
+  --status-running: #5cb185;   /* softer green, not mint-neon */
+  --status-waiting: #d6a94e;   /* muted amber */
+  --status-error:   #d97a63;   /* desaturated terracotta-red */
+  --status-dead:    #6e6e6e;
+
+  /* ── Agent colors (each pairs with a glyph) ───────────────
+     Brand orange stays vivid for Claude; the rest are toned to match
+     the calmer status palette so the canvas reads quiet, not poppy. */
+  --agent-claude:  #ff8c00;
+  --agent-codex:   #5cb185;
+  --agent-gemini:  #6f9bcc;
+  --agent-cursor:  #a98bd6;
+  --agent-grok:    #cfcfcf;
+  --agent-venice:  #14b8a6;
+  --agent-shell:   #6f9bcc;
+  --agent-browser: #6f9bcc;
+  --agent-note:    #d6a94e;
+
+  /* ── Accent helpers (use these instead of ad-hoc rgba) ──── */
+  --accent: #ff8c00;
+  --accent-soft:   rgba(255,140,0,0.12);  /* active/selected tint */
+  --accent-border: rgba(255,140,0,0.42);  /* active/selected border */
+
+  /* ── Type ─────────────────────────────────────────────── */
+  /* Native system UI font (matches Cursor/VS Code on macOS — SF Pro). Cleaner
+     and lighter than a bundled webfont; falls back per-platform. */
+  --font-ui:   -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
+               "Inter", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-code: "SF Mono", "Menlo", "Monaco", "JetBrains Mono",
+               "Consolas", "Liberation Mono", monospace;
+
+  /* Sizes — anything smaller than --text-xs should be exceptional. */
+  --text-2xs: 10px;   /* tiny tag pills only (≤6 chars) */
+  --text-xs:  11px;   /* secondary metadata */
+  --text-sm:  12px;   /* default UI body */
+  --text-md:  13px;   /* pane labels, buttons */
+  --text-lg:  15px;   /* dialog headings */
+  --text-xl:  18px;   /* page titles */
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 6px;
+  --space-3: 8px;
+  --space-4: 12px;
+  --space-5: 16px;
+  --space-6: 24px;
+
+  /* Hit-target floor for buttons */
+  --hit: 28px;
+  /* Standard inline-control height — every top-bar / toolbar button uses this
+     so the chrome reads as one consistent row (matches the Terminals button). */
+  --ctl-h: 24px;
+}
+
+/* Default UI body styling — overrides browser defaults for buttons/inputs. */
+button, input, textarea, select {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Reusable utility classes the components can opt into. */
+.cg-ui    { font-family: var(--font-ui);   font-variant-numeric: tabular-nums; }
+.cg-code  { font-family: var(--font-code); }
+.cg-num   { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+.cg-caps  { text-transform: uppercase; letter-spacing: 0.7px; font-weight: 700; }
+
+/* Focus ring — single token for all focusable chrome.
+ * !important so inline `outline: none` on inputs/buttons can never suppress the
+ * keyboard focus ring (stylesheet !important beats inline non-important). The
+ * class selector outranks the bare :focus-visible rule below, so opted-in chrome
+ * still gets the stronger 2px ring. */
+.cg-focus-ring:focus-visible {
+  outline: 2px solid var(--border-focus) !important;
+  outline-offset: 1px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 15px;
+}
+
+/* Remove all rounded corners — dense terminal style */
+* {
+  border-radius: 0 !important;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a3a;
+}
+
+/* xterm.js overrides */
+.xterm {
+  padding: 2px 4px;
+}
+
+.xterm-viewport {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-default) transparent;
+}
+
+.xterm-viewport::-webkit-scrollbar {
+  width: 6px;
+}
+
+.xterm-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.xterm-viewport::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+}
+
+/* Terminal container fills parent */
+.terminal-container {
+  width: 100%;
+  height: 100%;
+}
+
+.terminal-container .xterm {
+  height: 100%;
+}
+
+
+.react-grid-item > .react-resizable-handle {
+  background: none;
+}
+
+.react-grid-item > .react-resizable-handle::after {
+  border-color: var(--border-default);
+}
+
+.react-grid-item > .react-resizable-handle:hover::after {
+  border-color: var(--text-accent);
+}
+
+/* Disable all animations for snappy terminal feel */
+.react-grid-item.cssTransforms {
+  transition-duration: 0ms !important;
+}
+
+/* Selection styling */
+::selection {
+  background: rgba(255, 140, 0, 0.3);
+  color: #ffffff;
+}
+
+/* Focus outlines — keyboard focus is always visible even when a component sets
+ * inline `outline: none` (common on inputs). !important guarantees the ring. */
+:focus-visible {
+  outline: 1px solid var(--text-accent) !important;
+  outline-offset: -1px;
+}
+
+/* Input styling */
+input[type="text"],
+input[type="number"] {
+  border-radius: 0 !important;
+}
+
+input[type="checkbox"] {
+  border-radius: 0 !important;
+}
+
+/* Dense UI: reduce all padding */
+button {
+  font-family: var(--font-ui);
+  border-radius: 0 !important;
+}
+
+input,
+textarea,
+select {
+  font-family: var(--font-ui) !important;
+}
+
+.xterm,
+pre,
+code {
+  font-family: var(--font-code) !important;
+}
+
+/* ===== Agent "done generating" flash animations ===== */
+
+/* Status dot bursts bright then settles to idle-blue */
+@keyframes dotDoneFlash {
+  0%   { transform: scale(1);   background-color: #2ddc7c; box-shadow: 0 0 0 0 rgba(45,220,124,0.9); }
+  35%  { transform: scale(2.4); background-color: #ffffff; box-shadow: 0 0 0 5px rgba(255,255,255,0.35); }
+  65%  { transform: scale(1.5); background-color: #5fa8ff; box-shadow: 0 0 0 3px rgba(95,168,255,0.25); }
+  100% { transform: scale(1);   background-color: #5fa8ff; box-shadow: none; }
+}
+.tab-done-dot {
+  animation: dotDoneFlash 1.1s ease-out forwards;
+}
+
+/* Tab background washes briefly green then fades out */
+@keyframes tabDoneHighlight {
+  0%   { background-color: rgba(45,220,124,0.18); }
+  55%  { background-color: rgba(45,220,124,0.07); }
+  100% { background-color: transparent; }
+}
+.tab-done-highlight {
+  animation: tabDoneHighlight 1.4s ease-out forwards !important;
+}
+
+/* Pane container glows green briefly */
+@keyframes paneDoneGlow {
+  0%   { outline: 2px solid rgba(45,220,124,0);   outline-offset: 0; }
+  25%  { outline: 2px solid rgba(45,220,124,0.75); outline-offset: 1px; }
+  100% { outline: 2px solid rgba(45,220,124,0);   outline-offset: 0; }
+}
+.pane-done-glow {
+  animation: paneDoneGlow 1.5s ease-out forwards;
+}
+
+/* Accessibility: respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .xterm {
+    cursor: auto;
+  }
+}
+
+/* Accessibility: high contrast mode */
+@media (prefers-contrast: high) {
+  :root {
+    --bg-primary: #000000;
+    --bg-secondary: #1a1a1a;
+    --bg-tertiary: #333333;
+    --text-primary: #ffffff;
+    --text-secondary: #cccccc;
+    --border-default: #666666;
+    --border-focus: #ffaa00;
+  }
+  :focus-visible {
+    outline: 2px solid var(--border-focus);
+    outline-offset: 2px;
+  }
+}
+
+/* Font smoothing for macOS */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Firefox selection */
+::-moz-selection {
+  background: rgba(255, 140, 0, 0.3);
+  color: #ffffff;
+}
+
+/* Generic spinner: a small ring that rotates. Used for in-progress AI actions
+   (e.g. naming a terminal) so the user gets clear "working…" feedback. */
+@keyframes cgSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.cg-spinner {
+  display: inline-block;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-faint, #555);
+  border-top-color: var(--text-accent, #ff8c00);
+  animation: cgSpin 0.7s linear infinite;
+}

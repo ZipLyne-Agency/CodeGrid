@@ -1,0 +1,370 @@
+/* ------------------------------------------------------------------ *
+ * CodeGrid blog — brand-matched article styling.
+ * Tokens reused from app/globals.css (--bg-*, --accent, --text-*,
+ * --border, --status-*). No new tokens, no new fonts. Everything is
+ * square-cornered to match the global `border-radius: 0` rule.
+ *
+ * The article HTML returned by MentionWell ships pre-built chrome
+ * scoped to `.wb-article-host` (callouts, quotes, tables, TL;DR, TOC,
+ * FAQ, CTA, author, citations, YouTube, steps). We style those classes
+ * here against CodeGrid tokens so they render natively rather than
+ * importing an external platform stylesheet.
+ * ------------------------------------------------------------------ */
+
+.wb-article-host {
+  --measure: 70ch;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.75;
+}
+
+/* ---- Article header & hero (rendered by the platform inside post.html) ---- */
+.wb-article-host .wb-header {
+  margin-bottom: 2rem;
+}
+.wb-article-host h1 {
+  font-family: var(--font-display);
+  font-size: clamp(1.9rem, 4vw, 2.6rem);
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  margin: 0 0 1rem;
+}
+.wb-article-host .wb-header .wb-meta,
+.wb-article-host .wb-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+.wb-article-host .wb-hero {
+  margin: 1.5rem 0 2.5rem;
+}
+.wb-article-host .wb-hero img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
+/* ---- Prose primitives ---- */
+.wb-article-host h2,
+.wb-article-host h3,
+.wb-article-host h4 {
+  font-family: var(--font-display);
+  color: var(--text-primary);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  scroll-margin-top: 6rem;
+}
+.wb-article-host h2 {
+  font-size: 1.5rem;
+  line-height: 1.2;
+  margin: 2.75rem 0 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.wb-article-host h3 {
+  font-size: 1.2rem;
+  line-height: 1.3;
+  margin: 2rem 0 0.75rem;
+}
+.wb-article-host h4 {
+  font-size: 1.02rem;
+  margin: 1.5rem 0 0.5rem;
+}
+.wb-article-host p,
+.wb-article-host ul,
+.wb-article-host ol {
+  max-width: var(--measure);
+  margin: 0 0 1.15rem;
+}
+.wb-article-host ul,
+.wb-article-host ol {
+  padding-left: 1.4rem;
+}
+.wb-article-host li {
+  margin: 0.4rem 0;
+}
+.wb-article-host li::marker {
+  color: var(--accent);
+}
+.wb-article-host a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  transition: border-color 0.15s ease;
+}
+.wb-article-host a:hover {
+  border-bottom-color: var(--accent);
+}
+.wb-article-host strong {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+.wb-article-host hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 2.5rem 0;
+}
+
+.wb-article-host blockquote,
+.wb-article-host .wb-quote {
+  margin: 1.75rem 0;
+  padding: 0.75rem 1.25rem;
+  border-left: 3px solid var(--accent);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-style: normal;
+}
+.wb-article-host blockquote p:last-child,
+.wb-article-host .wb-quote p:last-child {
+  margin-bottom: 0;
+}
+
+/* ---- Code ---- */
+.wb-article-host code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  padding: 0.12em 0.4em;
+  border: 1px solid var(--border);
+}
+.wb-article-host pre {
+  margin: 1.5rem 0;
+  padding: 1.1rem 1.25rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  overflow-x: auto;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+.wb-article-host pre code {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-size: inherit;
+}
+
+/* ---- Images & figures ---- */
+.wb-article-host img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid var(--border);
+}
+.wb-article-host figure {
+  margin: 2rem 0;
+}
+.wb-article-host figcaption {
+  margin-top: 0.6rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+.wb-article-host .wb-infographic img {
+  border: 1px solid var(--border);
+}
+
+/* ---- Tables (full-width at desktop, scroll only on small screens) ---- */
+.wb-article-host table {
+  width: 100%;
+  display: table;
+  table-layout: auto;
+  border-collapse: collapse;
+  margin: 1.75rem 0;
+  font-size: 0.9rem;
+  border: 1px solid var(--border);
+}
+.wb-article-host thead {
+  background: var(--bg-tertiary);
+}
+.wb-article-host th {
+  text-align: left;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.wb-article-host th,
+.wb-article-host td {
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--border);
+  vertical-align: top;
+}
+.wb-article-host tbody tr:nth-child(even) {
+  background: var(--bg-secondary);
+}
+@media (max-width: 640px) {
+  .wb-article-host table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+}
+
+/* ---- Callouts ---- */
+.wb-article-host .wb-callout {
+  margin: 1.75rem 0;
+  padding: 1rem 1.25rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--status-idle);
+}
+.wb-article-host .wb-callout p:last-child {
+  margin-bottom: 0;
+}
+.wb-article-host .wb-callout-tip {
+  border-left-color: var(--status-running);
+}
+.wb-article-host .wb-callout-warning {
+  border-left-color: var(--status-error);
+}
+.wb-article-host .wb-callout-stat {
+  border-left-color: var(--accent);
+}
+
+/* ---- TL;DR ---- */
+.wb-article-host .wb-tldr {
+  margin: 0 0 2rem;
+  padding: 1.25rem 1.5rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+}
+.wb-article-host .wb-tldr h2,
+.wb-article-host .wb-tldr h3 {
+  margin-top: 0;
+  border-bottom: 0;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+}
+
+/* ---- TOC (inline, inside article flow) ---- */
+.wb-article-host .wb-toc {
+  margin: 0 0 2rem;
+  padding: 1.1rem 1.4rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+}
+.wb-article-host .wb-toc h2,
+.wb-article-host .wb-toc h3 {
+  margin-top: 0;
+  border-bottom: 0;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-secondary);
+}
+.wb-article-host .wb-toc a {
+  border-bottom: 0;
+}
+
+/* ---- FAQ ---- */
+.wb-article-host .wb-faq-item,
+.wb-article-host details {
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  background: var(--bg-secondary);
+}
+.wb-article-host .wb-faq-item:last-of-type,
+.wb-article-host details:last-of-type {
+  border-bottom: 1px solid var(--border);
+}
+.wb-article-host summary {
+  cursor: pointer;
+  padding: 0.9rem 1.2rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  list-style: none;
+}
+.wb-article-host summary::-webkit-details-marker {
+  display: none;
+}
+.wb-article-host details[open] summary {
+  border-bottom: 1px solid var(--border);
+}
+.wb-article-host details p {
+  padding: 0.9rem 1.2rem;
+  margin: 0;
+}
+
+/* ---- CTA blocks inside article HTML ---- */
+.wb-article-host .wb-cta,
+.wb-article-host .wb-footer-cta {
+  margin: 2.5rem 0;
+  padding: 1.75rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  text-align: center;
+}
+.wb-article-host .wb-cta a,
+.wb-article-host .wb-footer-cta a {
+  display: inline-block;
+  margin-top: 0.75rem;
+  padding: 0.7rem 1.4rem;
+  background: var(--accent);
+  color: #000;
+  font-weight: 700;
+  border-bottom: 0;
+}
+.wb-article-host .wb-cta a:hover,
+.wb-article-host .wb-footer-cta a:hover {
+  background: var(--accent-hover);
+}
+
+/* ---- Author / citations / steps / YouTube ---- */
+.wb-article-host .wb-author {
+  margin: 2.5rem 0;
+  padding: 1.25rem 1.5rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+}
+.wb-article-host .wb-author img {
+  border: 1px solid var(--border);
+}
+.wb-article-host .wb-citations {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+.wb-article-host .wb-steps {
+  margin: 1.75rem 0;
+}
+.wb-article-host .wb-youtube,
+.wb-article-host .wb-youtube-card {
+  margin: 2rem 0;
+}
+.wb-article-host .wb-youtube-frame,
+.wb-article-host iframe {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--border);
+}
+
+/* ---- Reduced motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  .wb-fade-in {
+    animation: none !important;
+  }
+}
+
+@keyframes wb-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.wb-fade-in {
+  animation: wb-fade-in 0.4s ease both;
+}

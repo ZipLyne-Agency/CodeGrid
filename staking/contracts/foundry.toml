@@ -1,0 +1,38 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["dependencies"]
+test = "test"
+script = "script"
+solc_version = "0.8.28"
+optimizer = true
+optimizer_runs = 800
+via_ir = true
+# Soldeer-managed dependencies (no git submodules).
+remappings = [
+    "@openzeppelin/contracts/=dependencies/@openzeppelin-contracts-5.4.0/",
+    "forge-std/=dependencies/forge-std-1.9.7/src/",
+]
+
+[soldeer]
+remappings_generate = false
+
+[dependencies]
+"@openzeppelin-contracts" = "5.4.0"
+forge-std = "1.9.7"
+
+[fmt]
+line_length = 110
+tab_width = 4
+bracket_spacing = false
+int_types = "long"
+
+# Base network endpoints. RPC + keys come from the environment (Infisical /
+# .env), never committed. See staking/README.md.
+[rpc_endpoints]
+base = "${BASE_RPC_URL}"
+base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
+
+[etherscan]
+base = { key = "${BASESCAN_API_KEY}", chain = 8453, url = "https://api.basescan.org/api" }
+base_sepolia = { key = "${BASESCAN_API_KEY}", chain = 84532, url = "https://api-sepolia.basescan.org/api" }

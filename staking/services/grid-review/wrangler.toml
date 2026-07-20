@@ -1,0 +1,54 @@
+# grid-review — Cloudflare Worker.
+#
+# Pro-gated AI code review. Receives a git diff + the entitlement JWT (minted by
+# grid-verifier, verified here against the same Ed25519 PUBLIC key), and returns a
+# structured review report. The review model runs SERVER-SIDE only — the model
+# identity and the provider API key never leave this Worker.
+#
+# Secrets (NOT here — set with `wrangler secret put`):
+#   OPENROUTER_API_KEY   the review provider key. Never in [vars], never in the app.
+name = "grid-review"
+main = "src/index.ts"
+compatibility_date = "2026-05-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+JWT_ISSUER = "https://codegrid.app"
+JWT_AUDIENCE = "codegrid-desktop"
+PUBLIC_JWK = '{"crv":"Ed25519","x":"nI2-PrApCZn-BNEqhlXPoMXUI5Bw5ht81gi70ypBakU","kty":"OKP","kid":"9193d787-f37a-4839-9411-e209a8c5e478","alg":"EdDSA"}'  # prod Ed25519 PUBLIC JWK (same as verifier's)
+MIN_TIER = "1"                               # minimum entitlement tier (1 = Pro)
+MAX_DIFF_CHARS = "120000"                    # truncate larger diffs to bound token cost
+REVIEW_DRY_RUN = "0"                         # "1" → return canned findings, skip the model
+REVIEW_MODEL = "anthropic/claude-sonnet-4.6" # OpenRouter slug
+REVIEW_MODEL_LABEL = "Claude Sonnet 4.6"     # friendly name shown to clients in the app
+REVIEWS_PER_MONTH = "30"                     # monthly AI-review cap per Pro wallet (cost guard)
+ASSIST_MODEL = "anthropic/claude-haiku-4.5"  # cheap/fast model: commit names + terminal summaries
+ASSIST_PER_MONTH = "300"                     # monthly cap for the cheap assist actions
+
+# Per-wallet monthly review counters (cost guard). Fail-open if absent.
+[[kv_namespaces]]
+binding = "REVIEWS"
+id = "77be07b79e2745a8be2b503b8353fab4"
+
+[observability]
+enabled = true
+
+# --- Staging (Base Sepolia testnet) — `wrangler deploy --env staging` ---
+[env.staging]
+name = "grid-review-staging"
+
+[env.staging.vars]
+JWT_ISSUER = "https://codegrid.app"
+JWT_AUDIENCE = "codegrid-desktop"
+MIN_TIER = "1"
+MAX_DIFF_CHARS = "120000"
+REVIEW_DRY_RUN = "0"
+REVIEW_MODEL = "anthropic/claude-sonnet-4.6"
+REVIEW_MODEL_LABEL = "Claude Sonnet 4.6"
+REVIEWS_PER_MONTH = "30"
+ASSIST_MODEL = "anthropic/claude-haiku-4.5"
+ASSIST_PER_MONTH = "300"
+PUBLIC_JWK = '{"crv":"Ed25519","x":"KOPZvvHeeWNyBUooot04GUgLzAJN6pE8AEBQzIwdeks","kty":"OKP","kid":"005749ee-14a4-4702-88ca-ff409fa080d5","alg":"EdDSA"}'
+
+[env.staging.observability]
+enabled = true

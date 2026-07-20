@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🔒 Report a security vulnerability
+    url: https://github.com/ZipLyne-Agency/CodeGrid/security/advisories/new
+    about: Please report security issues privately, not as public issues. See SECURITY.md.
+  - name: 💬 Questions & support
+    url: mailto:admin@codegrid.dev
+    about: For general questions, email admin@codegrid.dev.

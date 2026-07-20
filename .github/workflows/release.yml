@@ -1,0 +1,179 @@
+name: Release
+
+# Publish a signed + notarized macOS build on every push to main.
+# The version is auto-bumped (patch), committed back with [skip ci], and a
+# GitHub Release is created. The website /download endpoint and the in-app
+# auto-updater both read the "latest" release, so users get the new build
+# automatically once this finishes.
+#
+# Website-only / docs-only changes are ignored (the desktop app is unaffected),
+# so they don't trigger a multi-minute notarized build.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "landing/**"
+      - "docs/**"
+      - "staking/**"
+      - "**/*.md"
+      - ".github/ISSUE_TEMPLATE/**"
+
+# Never run two releases at once (notarization can take several minutes).
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # Skip the run triggered by our own version-bump commit.
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0 # need tags to compute the next version
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Compute and apply next version
+        id: bump
+        run: |
+          set -euo pipefail
+          # Base the bump on the highest of (current Cargo version, highest vX.Y.Z tag)
+          # so we never collide with an existing tag.
+          CUR=$(grep '^version' src-tauri/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          TAGV=$(git tag | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed 's/^v//' \
+                 | sort -t. -k1,1n -k2,2n -k3,3n | tail -1 || true)
+          BASE=$(printf '%s\n%s\n' "$CUR" "${TAGV:-0.0.0}" \
+                 | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)
+          IFS='.' read -r MA MI PA <<< "$BASE"
+          NEW="${MA}.${MI}.$((PA + 1))"
+          echo "Current=$CUR  HighestTag=${TAGV:-none}  ->  New=$NEW"
+
+          # macOS runner -> BSD sed (-i '')
+          sed -i '' "s/^version = \".*\"/version = \"${NEW}\"/" src-tauri/Cargo.toml
+          sed -i '' "s/\"version\": \".*\"/\"version\": \"${NEW}\"/" src-tauri/tauri.conf.json
+          sed -i '' "1,/\"version\":/{s/\"version\": \".*\"/\"version\": \"${NEW}\"/;}" package.json
+
+          # Keep both lockfiles aligned with the bumped manifests. A stale
+          # Cargo.lock makes every `cargo --locked` check fail in a fresh clone.
+          npm install --package-lock-only --ignore-scripts
+          cargo check --manifest-path src-tauri/Cargo.toml
+
+          echo "version=${NEW}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${NEW}" >> "$GITHUB_OUTPUT"
+
+      - name: Commit version bump
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json package.json package-lock.json
+          git commit -m "Release ${{ steps.bump.outputs.tag }} [skip ci]"
+          git push origin HEAD:main
+
+      - name: Build, sign, notarize app, and create draft release
+        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Code signing
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          # Notarization (Tauri expects APPLE_PASSWORD = app-specific password)
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Updater signing
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ steps.bump.outputs.tag }}
+          releaseName: "CodeGrid ${{ steps.bump.outputs.tag }}"
+          releaseBody: "CodeGrid ${{ steps.bump.outputs.tag }} — signed and notarized for macOS."
+          # Keep artifacts private until the explicit signature, Gatekeeper,
+          # updater-signature, and DMG stapling checks below all succeed.
+          releaseDraft: true
+          prerelease: false
+          includeUpdaterJson: true
+          args: --target aarch64-apple-darwin
+
+      - name: Notarize, staple, and verify release artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          APP="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/CodeGrid.app"
+          DMG=$(find src-tauri/target/aarch64-apple-darwin/release/bundle/dmg -name '*.dmg' -print -quit)
+          ARCHIVE=$(find src-tauri/target/aarch64-apple-darwin/release/bundle/macos -name '*.app.tar.gz' -print -quit)
+          SIGFILE="${ARCHIVE}.sig"
+
+          test -d "$APP"
+          test -s "$DMG"
+          test -s "$ARCHIVE"
+          test -s "$SIGFILE"
+
+          # The Tauri build notarizes and staples the app. The DMG itself needs
+          # its own notarization submission and ticket before publication.
+          xcrun notarytool submit "$DMG" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --wait --timeout 20m
+          xcrun stapler staple "$DMG"
+
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          spctl --assess --type execute -vv "$APP"
+          xcrun stapler validate "$APP"
+          codesign --verify --verbose=2 "$DMG"
+          xcrun stapler validate "$DMG"
+          spctl --assess --type install -vv "$DMG"
+
+          brew list minisign >/dev/null 2>&1 || brew install minisign
+          DECODED_SIG=$(mktemp)
+          node - "$SIGFILE" "$DECODED_SIG" <<'NODE'
+          const fs = require("node:fs");
+          const [source, destination] = process.argv.slice(2);
+          fs.writeFileSync(destination, Buffer.from(fs.readFileSync(source, "utf8").trim(), "base64"), { mode: 0o600 });
+          NODE
+          PUBKEY=$(node -e 'const c=require("./src-tauri/tauri.conf.json").plugins.updater.pubkey; process.stdout.write(Buffer.from(c,"base64").toString().split(/\r?\n/)[1])')
+          minisign -Vm "$ARCHIVE" -x "$DECODED_SIG" -P "$PUBKEY"
+
+          # tauri-action uploaded the pre-staple DMG to the draft; replace it
+          # with the verified stapled artifact before making the release public.
+          gh release upload "${{ steps.bump.outputs.tag }}" "$DMG" --clobber
+
+      - name: Publish verified release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "${{ steps.bump.outputs.tag }}" --draft=false --latest

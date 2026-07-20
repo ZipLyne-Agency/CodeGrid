@@ -1,0 +1,33 @@
+{
+  "name": "codegrid-website",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "dev:random": "next dev -p 0",
+    "build": "next build",
+    "start": "next start",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mux/mux-player-react": "^3.11.7",
+    "@tanstack/react-table": "^8.21.3",
+    "@vercel/analytics": "^2.0.1",
+    "framer-motion": "^12.38.0",
+    "next": "^16.2.10",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "vitest": "^3.2.4"
+  },
+  "overrides": {
+    "postcss": "8.5.10"
+  }
+}

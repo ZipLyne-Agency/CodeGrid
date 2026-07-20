@@ -1,0 +1,27 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default capabilities for CodeGrid",
+  "windows": [
+    "main"
+  ],
+  "webviews": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:event:allow-listen",
+    "core:event:allow-emit",
+    "core:webview:default",
+    "core:webview:allow-create-webview",
+    "dialog:allow-open",
+    "shell:allow-open",
+    "updater:default",
+    "process:default",
+    "process:allow-restart",
+    "notification:default",
+    "deep-link:default",
+    "core:window:allow-set-badge-count"
+  ]
+}
