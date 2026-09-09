@@ -10,7 +10,7 @@
     "gen-test-jwt": "node scripts/mint-test-jwt.mjs"
   },
   "dependencies": {
-    "hono": "^4.12.31",
+    "hono": "^4.13.5",
     "jose": "^6.0.0"
   },
   "devDependencies": {
