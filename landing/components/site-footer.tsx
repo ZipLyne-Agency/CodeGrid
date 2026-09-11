@@ -86,9 +86,9 @@ export function SiteFooter() {
         <div className="mt-12 pt-6 border-t border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 font-mono text-[11px] text-text-secondary">
           <span>&copy; {new Date().getFullYear()} ZipLyne LLC. A Wyoming limited liability company.</span>
           <a
-            href="https://ziplyne.agency"
+            href="https://ziplyne.agency/?utm_source=codegrid.app&utm_medium=referral&utm_campaign=designed-and-developed&utm_content=footer"
             target="_blank"
-            rel="noopener noreferrer"
+            rel="noopener"
             className="text-[13px] font-semibold text-text-primary underline decoration-border underline-offset-4 hover:text-accent hover:decoration-accent transition-colors"
           >
             Designed and Developed by ZipLyne
