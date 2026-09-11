@@ -85,6 +85,14 @@ export function SiteFooter() {
         {/* Legal line */}
         <div className="mt-12 pt-6 border-t border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 font-mono text-[11px] text-text-secondary">
           <span>&copy; {new Date().getFullYear()} ZipLyne LLC. A Wyoming limited liability company.</span>
+          <a
+            href="https://ziplyne.agency"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[13px] font-semibold text-text-primary underline decoration-border underline-offset-4 hover:text-accent hover:decoration-accent transition-colors"
+          >
+            Designed and Developed by ZipLyne
+          </a>
           <span className="flex items-center gap-4">
             <span>Built with Tauri + React</span>
             <a href="mailto:admin@codegrid.dev" className="hover:text-accent transition-colors">admin@codegrid.dev</a>
