@@ -9,6 +9,10 @@ const nextConfig: NextConfig = {
     root: rootDir,
   },
   images: {
+    // WebP at three widths only, resized by Cloudflare Images
+    formats: ['image/webp'],
+    deviceSizes: [640, 1280, 1920],
+    imageSizes: [],
     remotePatterns: [
       { protocol: "https", hostname: "**.fal.media" },
       { protocol: "https", hostname: "images.unsplash.com" },

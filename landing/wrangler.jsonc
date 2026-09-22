@@ -1,0 +1,34 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "code-grid-app",
+  "main": "cloudflare/worker.js",
+  "compatibility_date": "2026-09-22",
+  "compatibility_flags": [
+    "nodejs_compat",
+    "global_fetch_strictly_public"
+  ],
+  "workers_dev": true,
+  "routes": [
+    {"pattern": "codegrid.app", "custom_domain": true},
+    {"pattern": "www.codegrid.app", "custom_domain": true}
+  ],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "code-grid-app"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "NEXT_INC_CACHE_R2_BUCKET",
+      "bucket_name": "code-grid-app-opennext-cache"
+    }
+  ],
+  "images": {
+    "binding": "IMAGES"
+  }
+}
