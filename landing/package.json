@@ -27,7 +27,7 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^3.2.4",
-    "wrangler": "^4.136.3"
+    "wrangler": "^4.146.0"
   },
   "overrides": {
     "postcss": "8.5.10"
