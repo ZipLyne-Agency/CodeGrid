@@ -11,7 +11,7 @@
     "db:init:remote": "wrangler d1 execute grid-points --remote --file=schema.sql"
   },
   "dependencies": {
-    "hono": "^4.12.31",
+    "hono": "^4.13.7",
     "jose": "^6.0.0"
   },
   "devDependencies": {
